@@ -1,4 +1,4 @@
-import { PrismaClient } from '../app/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { generateFormattedID } from '../lib/idGenerator'
 
 const prisma = new PrismaClient();

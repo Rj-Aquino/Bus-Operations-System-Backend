@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "prisma": "prisma",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "postinstall": "prisma generate"
   },
   "repository": {
     "type": "git",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@types/react": "19.1.6",
+    "eslint": "^9.27.0",
     "prisma": "^6.8.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
