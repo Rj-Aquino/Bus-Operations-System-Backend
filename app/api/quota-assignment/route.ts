@@ -23,11 +23,9 @@ export async function GET() {
             },
         }
     });
-    console.log('Assignments from database:', assignments); // Debugging
 
     return NextResponse.json(assignments);
   } catch (error) {
-    console.error('Error fetching bus route assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
 }
@@ -35,15 +33,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    console.log('Data received in API:', data); // Debugging
 
-    // Step 1: Generate a formatted QuotaPolicyID
-    console.log('Generating new QuotaPolicyID...'); // Debugging
     const newQuotaPolicyID = await generateFormattedID('QP');
-    console.log('Generated new QuotaPolicyID:', newQuotaPolicyID); // Debugging
 
-    // Step 2: Create the new QuotaPolicy
-    console.log('Creating new QuotaPolicy...'); // Debugging
     const newQuotaPolicy = await prisma.quota_Policy.create({
       data: {
         QuotaPolicyID: newQuotaPolicyID,
@@ -66,11 +58,10 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log('New QuotaPolicy created:', newQuotaPolicy); // Debugging
     return NextResponse.json(newQuotaPolicy, { status: 201 });
 
   } catch (error) {
-    console.error('Error creating quota policy:', error);
+
     return NextResponse.json({ error: 'Failed to create quota policy' }, { status: 500 });
   }
 }

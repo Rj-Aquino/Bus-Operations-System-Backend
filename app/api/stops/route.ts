@@ -15,11 +15,8 @@ export async function GET() {
       },
     });
 
-    console.log('Non-deleted stops from database:', stops);
-
     return NextResponse.json(stops);
   } catch (error) {
-    console.error('Error fetching stops:', error);
     return NextResponse.json({ error: 'Failed to fetch stops' }, { status: 500 });
   }
 }
@@ -27,7 +24,6 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const { StopName, latitude, longitude  } = await req.json();
-    console.log(StopName, latitude, longitude); // Debugging
 
     // Validate input
     if (!StopName || !latitude || !longitude) {
@@ -51,11 +47,8 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('New stop created:', newStop);
-
     return NextResponse.json(newStop, { status: 201 });
   } catch (error) {
-    console.error('Error creating stop:', error);
     return NextResponse.json({ error: 'Failed to create stop' }, { status: 500 });
   }
 }

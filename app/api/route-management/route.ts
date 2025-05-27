@@ -26,7 +26,6 @@ export async function GET() {
 
     return NextResponse.json(routes);
   } catch (error) {
-    console.error('Error fetching routes:', error);
     return NextResponse.json({ error: 'Failed to fetch routes' }, { status: 500 });
   }
 }
@@ -38,10 +37,8 @@ type RouteStopInput = {
 
 export async function POST(req: Request) {
   try {
-    console.log('POST request received for creating a new route');
 
     const data = await req.json();
-    console.log('Data received in API:', data);
 
     const rawRouteStops: RouteStopInput[] = Array.isArray(data.RouteStops) ? data.RouteStops : [];
 
@@ -83,7 +80,6 @@ export async function POST(req: Request) {
 
     // Create the Route
     const newRouteID = await generateFormattedID('RT');
-    console.log('Generated new RouteID:', newRouteID);
 
     const newRoute = await prisma.route.create({
       data: {
@@ -94,7 +90,6 @@ export async function POST(req: Request) {
         IsDeleted: false,
       },
     });
-    console.log('New Route created:', newRoute);
 
     // Create RouteStops
     if (routeStopIds.length > 0) {
@@ -116,10 +111,8 @@ export async function POST(req: Request) {
           });
         })
       );
-      console.log('Created RouteStops:', createdRouteStops);
-    } else {
-      console.log('No RouteStops provided, skipping creation.');
-    }
+
+    } 
 
     return NextResponse.json(newRoute, { status: 201 });
   } catch (error: unknown) {
@@ -136,7 +129,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.error('Error creating route:', error);
     return NextResponse.json({ error: 'Failed to create route' }, { status: 500 });
   }
 }

@@ -135,7 +135,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.error('Error updating route:', error);
     return NextResponse.json({ error: 'Failed to update route' }, { status: 500 });
   }
 }
@@ -162,7 +161,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json(updatedRoute, { status: 200 });
   } catch (error) {
-    console.error('Error updating route:', error);
+
     return NextResponse.json({ error: 'Failed to update route' }, { status: 500 });
   }
 }

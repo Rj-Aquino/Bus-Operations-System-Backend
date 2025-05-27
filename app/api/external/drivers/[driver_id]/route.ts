@@ -36,7 +36,6 @@ export async function GET(request: Request) {
       message = error;
     }
 
-    console.error(error);
     return new Response(JSON.stringify({ error: 'Failed to fetch driver', details: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

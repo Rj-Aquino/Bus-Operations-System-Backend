@@ -6,7 +6,6 @@ export async function GET() {
     const buses = await fetchBuses();
     return NextResponse.json({ data: buses });
   } catch (error) {
-    console.error('Error:', error);
     return NextResponse.json({ error: 'Failed to fetch buses' }, { status: 500 });
   }
 }

@@ -29,17 +29,14 @@ export async function GET() {
 
     return NextResponse.json(assignments);  // Return fetched assignments
   } catch (error) {
-    console.error('Error fetching bus route assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    console.log('POST request received'); // Debugging
 
     const data = await request.json();
-    console.log('Data received in API:', data); // Debugging
 
     const baseUrl = process.env.APPLICATION_URL;
 
@@ -78,8 +75,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Step 1: Call API to create QuotaPolicy
-    console.log('Calling QuotaPolicy API...');
     const quotaPolicyResponse = await fetch(`${baseUrl}/api/quota-assignment`, {
       method: 'POST',
       headers: {
@@ -96,15 +91,8 @@ export async function POST(request: Request) {
     }
 
     const newQuotaPolicy = await quotaPolicyResponse.json();
-    console.log('QuotaPolicy created via API:', newQuotaPolicy);
-
-    // Step 2: Generate BusAssignmentID
-    console.log('Generating new BusAssignmentID...');
     const newBusAssignmentID = await generateFormattedID('BA');
-    console.log('Generated new BusAssignmentID:', newBusAssignmentID);
 
-    // Step 3: Create the BusAssignment with RegularBusAssignment
-    console.log('Creating new BusAssignment record...');
     const newAssignment = await prisma.busAssignment.create({
       data: {
         BusAssignmentID: newBusAssignmentID,
@@ -135,11 +123,9 @@ export async function POST(request: Request) {
       },
     });
 
-    console.log('New BusAssignment created in database:', newAssignment);
     return NextResponse.json(newAssignment, { status: 201 });
 
   } catch (error) {
-    console.error('Error creating BusAssignment:', error);
     return NextResponse.json(
       { error: 'Failed to create BusAssignment' },
       { status: 500 }

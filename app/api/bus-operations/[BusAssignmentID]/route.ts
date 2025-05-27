@@ -128,7 +128,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ message: 'Update successful' });
   } catch (error) {
-    console.error('Failed to update bus assignment:', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 }

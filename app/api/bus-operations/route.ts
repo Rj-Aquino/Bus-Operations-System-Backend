@@ -45,7 +45,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(busAssignments);
   } catch (error) {
-    console.error('Failed to fetch bus assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch bus assignments' }, { status: 500 });
   }
 }

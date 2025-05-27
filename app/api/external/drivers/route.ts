@@ -6,7 +6,6 @@ export async function GET() {
     const drivers = await fetchDrivers();
     return NextResponse.json({ data: drivers });
   } catch (error) {
-    console.error('Error:', error);
     return NextResponse.json({ error: 'Failed to fetch drivers' }, { status: 500 });
   }
 }

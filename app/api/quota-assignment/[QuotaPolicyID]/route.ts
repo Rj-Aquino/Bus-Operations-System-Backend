@@ -74,7 +74,6 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(updatedQuotaPolicy, { status: 200 });
 
   } catch (error) {
-    console.error('Error updating quota policy:', error);
     return NextResponse.json({ error: 'Failed to update quota policy' }, { status: 500 });
   }
 }

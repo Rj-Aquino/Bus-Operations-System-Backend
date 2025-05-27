@@ -38,7 +38,6 @@ export async function GET(request: Request) {
       message = error;
     }
 
-    console.error(error);
     return new Response(JSON.stringify({ error: 'Failed to fetch bus', details: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

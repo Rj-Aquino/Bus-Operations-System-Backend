@@ -42,7 +42,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
-    console.error('Error updating stop:', error);
     return NextResponse.json({ error: 'Failed to update stop' }, { status: 500 });
   }
 }
@@ -75,7 +74,6 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
-    console.error('Error updating stop:', error);
     return NextResponse.json(
       { error: 'Failed to update stop' },
       { status: 500 }

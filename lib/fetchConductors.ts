@@ -37,12 +37,25 @@ export async function fetchConductors() {
 export async function fetchConductorById(conductorId: string) {
   const CACHE_KEY = `conductor_data_${conductorId}`;
 
-  // Try cache first
+  // 1. Try individual cache
   const cached = await redis.get(CACHE_KEY);
-  if (cached !== null && typeof cached === 'string') {
+  if (cached && typeof cached === 'string') {
     return JSON.parse(cached);
   }
 
+  // 2. Try global conductors cache
+  const allConductorsCache = await redis.get('conductors_data');
+  if (allConductorsCache && typeof allConductorsCache === 'string') {
+    const conductors = JSON.parse(allConductorsCache);
+    const conductor = conductors.find((c: any) => c.conductor_id === conductorId);
+
+    if (conductor) {
+      await redis.set(CACHE_KEY, JSON.stringify(conductor), { ex: TTL_SECONDS });
+      return conductor;
+    }
+  }
+
+  // 3. Fallback: Fetch from Supabase
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/conductors?conductor_id=eq.${encodeURIComponent(conductorId)}`;
 
   console.log('Fetching from URL:', url);
@@ -50,7 +63,6 @@ export async function fetchConductorById(conductorId: string) {
   const res = await fetch(url, {
     headers: {
       apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      // Authorization header removed
     },
   });
 
@@ -60,10 +72,9 @@ export async function fetchConductorById(conductorId: string) {
     throw new Error(`Failed to fetch conductor with ID ${conductorId}: ${res.status} ${res.statusText}`);
   }
 
-  const conductors = await res.json();
-  const conductor = conductors.length > 0 ? conductors[0] : null;
+  const data = await res.json();
+  const conductor = data.length > 0 ? data[0] : null;
 
-  // Cache result if found
   if (conductor) {
     await redis.set(CACHE_KEY, JSON.stringify(conductor), { ex: TTL_SECONDS });
   }

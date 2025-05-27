@@ -35,16 +35,27 @@ export async function fetchBuses() {
 export async function fetchBusById(busId: string) {
   const CACHE_KEY = `bus_data_${busId}`;
 
-  // 1. Try cache first
+  // 1. Try individual bus cache
   const cached = await redis.get(CACHE_KEY);
-  if (cached !== null && typeof cached === 'string') {
+  if (cached && typeof cached === 'string') {
     return JSON.parse(cached);
   }
 
-  // 2. Encode busId for URL safety
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?busId=eq.${encodeURIComponent(busId)}`;
+  // 2. Try from global cache of all buses
+  const allBusesCache = await redis.get('buses_data');
+  if (allBusesCache && typeof allBusesCache === 'string') {
+    const buses = JSON.parse(allBusesCache);
+    const bus = buses.find((b: any) => b.busId === busId);
 
-  console.log('Fetching from URL:', url);
+    if (bus) {
+      // Cache individually for future access
+      await redis.set(CACHE_KEY, JSON.stringify(bus), { ex: TTL_SECONDS });
+      return bus;
+    }
+  }
+
+  // 3. Fallback to Supabase if not found in cache
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?busId=eq.${encodeURIComponent(busId)}`;
 
   const res = await fetch(url, {
     headers: {
@@ -60,7 +71,7 @@ export async function fetchBusById(busId: string) {
   const data = await res.json();
   const bus = data.length > 0 ? data[0] : null;
 
-  // 3. Cache the result
+  // 4. Cache the bus individually
   if (bus) {
     await redis.set(CACHE_KEY, JSON.stringify(bus), { ex: TTL_SECONDS });
   }

@@ -35,12 +35,26 @@ export async function fetchDrivers() {
 export async function fetchDriverById(driverId: string) {
   const CACHE_KEY = `driver_data_${driverId}`;
 
-  // Try cache first
+  // 1. Try individual driver cache
   const cached = await redis.get(CACHE_KEY);
-  if (cached !== null && typeof cached === 'string') {
+  if (cached && typeof cached === 'string') {
     return JSON.parse(cached);
   }
 
+  // 2. Try searching from cached list of all drivers
+  const allDriversCache = await redis.get('drivers_data');
+  if (allDriversCache && typeof allDriversCache === 'string') {
+    const drivers = JSON.parse(allDriversCache);
+    const driver = drivers.find((d: any) => d.driver_id === driverId);
+
+    if (driver) {
+      // Cache individually for future quick access
+      await redis.set(CACHE_KEY, JSON.stringify(driver), { ex: TTL_SECONDS });
+      return driver;
+    }
+  }
+
+  // 3. Fallback to Supabase fetch if not found in any cache
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/drivers?driver_id=eq.${encodeURIComponent(driverId)}`;
 
   const res = await fetch(url, {
@@ -57,7 +71,7 @@ export async function fetchDriverById(driverId: string) {
   const drivers = await res.json();
   const driver = drivers.length > 0 ? drivers[0] : null;
 
-  // Cache the result if found
+  // 4. Cache it individually if found
   if (driver) {
     await redis.set(CACHE_KEY, JSON.stringify(driver), { ex: TTL_SECONDS });
   }
