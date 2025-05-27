@@ -12,87 +12,74 @@ export async function PUT(request: Request) {
 
     const data = await request.json();
 
-    // Extract the numeric part after the hyphen from DriverID and ConductorID
-    const driverSuffix = data.DriverID.split('-')[1];
-    const conductorSuffix = data.ConductorID.split('-')[1];
-
-    // Validate that driver and conductor suffix are not the same
+    // === Validate Driver and Conductor are not the same ===
+    const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id?.split('-')[1]);
     if (driverSuffix === conductorSuffix) {
-      return NextResponse.json(
-        { error: 'Driver and Conductor cannot be the same person' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // Step 1: Soft delete if IsDeleted is true
+    // === Soft Delete Case ===
     if (data.IsDeleted === true) {
-      const updatedBusAssignment = await prisma.busAssignment.update({
+      const updated = await prisma.busAssignment.update({
         where: { BusAssignmentID },
         data: { IsDeleted: true },
+        select: { BusAssignmentID: true, IsDeleted: true },
       });
-
-      return NextResponse.json(updatedBusAssignment, { status: 200 });
+      return NextResponse.json(updated, { status: 200 });
     }
 
-    // Step 2: Fetch the existing BusAssignment with RegularBusAssignment
-    const existingBusAssignment = await prisma.busAssignment.findUnique({
+    // === Fetch Existing Data (minimal fields) ===
+    const existing = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
-      include: {
+      select: {
+        BusAssignmentID: true,
         RegularBusAssignment: {
-          include: {
-            quotaPolicy: true,
+          select: {
+            RegularBusAssignmentID: true,
+            quotaPolicy: {
+              select: {
+                QuotaPolicyID: true,
+              },
+            },
           },
         },
       },
     });
 
-    if (!existingBusAssignment || !existingBusAssignment.RegularBusAssignment) {
+    if (!existing?.RegularBusAssignment) {
       return NextResponse.json({ error: 'BusAssignment or RegularBusAssignment not found' }, { status: 404 });
     }
 
-    const baseUrl = process.env.APPLICATION_URL;
-    if (!baseUrl) {
-      return NextResponse.json({ error: 'Base URL is not defined' }, { status: 500 });
-    }
+    // === Conditionally Update QuotaPolicy ===
+    const quotaPolicyId = existing.RegularBusAssignment.quotaPolicy?.QuotaPolicyID;
+    if (quotaPolicyId && data.type && data.value) {
+      const baseUrl = process.env.APPLICATION_URL;
+      if (!baseUrl) {
+        return NextResponse.json({ error: 'Base URL not defined' }, { status: 500 });
+      }
 
-    // Step 3: Conditionally update QuotaPolicy via API if needed
-    const quotaPolicyId = existingBusAssignment.RegularBusAssignment.quotaPolicy?.QuotaPolicyID;
-    const shouldUpdateQuotaPolicy = data.type && data.value && quotaPolicyId;
-
-    if (shouldUpdateQuotaPolicy) {
-      const quotaPolicyData = {
-        QuotaPolicyID: quotaPolicyId,
-        type: data.type,
-        value: data.value,
-        StartDate: data.StartDate,
-        EndDate: data.EndDate,
-      };
-
-      const quotaPolicyResponse = await fetch(`${baseUrl}/api/quota-assignment/${quotaPolicyData.QuotaPolicyID}`, {
+      const quotaResponse = await fetch(`${baseUrl}/api/quota-assignment/${quotaPolicyId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: quotaPolicyData.type,
-          value: quotaPolicyData.value,
-          StartDate: quotaPolicyData.StartDate,
-          EndDate: quotaPolicyData.EndDate,
+          type: data.type,
+          value: data.value,
+          StartDate: data.StartDate,
+          EndDate: data.EndDate,
         }),
       });
 
-      const quotaPolicyResponseData = await quotaPolicyResponse.json();
-
-      if (!quotaPolicyResponse.ok) {
+      if (!quotaResponse.ok) {
+        const quotaError = await quotaResponse.json();
         return NextResponse.json(
-          { error: quotaPolicyResponseData.error || 'Failed to update QuotaPolicy' },
-          { status: 500 }
+          { error: quotaError?.error || 'Failed to update QuotaPolicy' },
+          { status: 502 }
         );
       }
     }
 
-    // Step 4: Update the BusAssignment and related RegularBusAssignment
-    const updatedBusAssignment = await prisma.busAssignment.update({
+    // === Update BusAssignment and RegularBusAssignment ===
+    const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
       data: {
         BusID: data.BusID,
@@ -104,13 +91,21 @@ export async function PUT(request: Request) {
           },
         },
       },
-      include: {
+      select: {
+        BusAssignmentID: true,
+        BusID: true,
+        RouteID: true,
+        AssignmentDate: true,
+        IsDeleted: true,
         RegularBusAssignment: {
-          include: {
+          select: {
+            DriverID: true,
+            ConductorID: true,
             quotaPolicy: {
-              include: {
-                Fixed: true,
-                Percentage: true,
+              select: {
+                QuotaPolicyID: true,
+                Fixed: { select: { Quota: true } },
+                Percentage: { select: { Percentage: true } },
               },
             },
           },
@@ -118,9 +113,10 @@ export async function PUT(request: Request) {
       },
     });
 
-    return NextResponse.json(updatedBusAssignment, { status: 200 });
+    return NextResponse.json(updated, { status: 200 });
 
   } catch (error) {
+    console.error('[UPDATE_ASSIGNMENT_ERROR]', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 }
@@ -129,19 +125,31 @@ export async function PATCH(req: Request) {
   try {
     const url = new URL(req.url);
     const BusAssignmentID = url.pathname.split('/').pop();
-    const { isDeleted } = await req.json();
 
     if (!BusAssignmentID) {
-      return NextResponse.json({ error: 'busAssignmentID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'BusAssignmentID is required' }, { status: 400 });
     }
 
-    const updatedAssignment = await prisma.busAssignment.update({
-      where: { BusAssignmentID: BusAssignmentID },
+    const body = await req.json();
+    const { isDeleted } = body;
+
+    if (typeof isDeleted !== 'boolean') {
+      return NextResponse.json({ error: '`isDeleted` must be a boolean' }, { status: 400 });
+    }
+
+    const updated = await prisma.busAssignment.update({
+      where: { BusAssignmentID },
       data: { IsDeleted: isDeleted },
+      select: {
+        BusAssignmentID: true,
+        IsDeleted: true,
+      },
     });
 
-    return NextResponse.json(updatedAssignment, { status: 200 });
+    return NextResponse.json(updated, { status: 200 });
+
   } catch (error) {
+    console.error('[PATCH_ASSIGNMENT_ERROR]', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 }

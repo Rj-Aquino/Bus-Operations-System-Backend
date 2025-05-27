@@ -1,20 +1,17 @@
 import { fetchConductorById } from '@/lib/fetchConductors';
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/');
-  let conductorId = parts[parts.length - 1]; // last part of path
-
-  conductorId = decodeURIComponent(conductorId).trim();
-
-  if (!conductorId) {
-    return new Response(JSON.stringify({ error: 'Missing conductor ID' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
   try {
+    const url = new URL(request.url);
+    const conductorId = decodeURIComponent(url.pathname.split('/').at(-1) || '').trim();
+
+    if (!conductorId) {
+      return new Response(JSON.stringify({ error: 'Missing conductor ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const conductor = await fetchConductorById(conductorId);
 
     if (!conductor) {
@@ -28,15 +25,16 @@ export async function GET(request: Request) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    let message = 'Unknown error';
-    if (error instanceof Error) {
-      message = error.message;
-    } else if (typeof error === 'string') {
-      message = error;
-    }
 
-    return new Response(JSON.stringify({ error: 'Failed to fetch conductor', details: message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error('[GET_CONDUCTOR_BY_ID_ERROR]', message);
+
+    return new Response(JSON.stringify({
+      error: 'Failed to fetch conductor',
+      details: message,
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

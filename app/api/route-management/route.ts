@@ -7,16 +7,29 @@ export async function GET() {
   try {
     const routes = await prisma.route.findMany({
       where: {
-        IsDeleted: false, // Only include non-deleted routes
+        IsDeleted: false,
       },
-      include: {
-        StartStop: true,
-        EndStop: true,
+      select: {
+        RouteID: true,
+        RouteName: true,
+        StartStop: {
+          select: {
+            StopID: true,
+            StopName: true,
+          },
+        },
+        EndStop: {
+          select: {
+            StopID: true,
+            StopName: true,
+          },
+        },
         RouteStops: {
-          include: {
+          select: {
+            StopOrder: true,
             Stop: {
               select: {
-                StopName: true, // Only include StopName for RouteStops
+                StopName: true,
               },
             },
           },
@@ -26,6 +39,7 @@ export async function GET() {
 
     return NextResponse.json(routes);
   } catch (error) {
+    console.error('Failed to fetch routes:', error);
     return NextResponse.json({ error: 'Failed to fetch routes' }, { status: 500 });
   }
 }
@@ -37,26 +51,25 @@ type RouteStopInput = {
 
 export async function POST(req: Request) {
   try {
-
     const data = await req.json();
-
     const rawRouteStops: RouteStopInput[] = Array.isArray(data.RouteStops) ? data.RouteStops : [];
 
-    // Normalize StopIDs
-    const routeStopIds = rawRouteStops.map(routeStop =>
-      typeof routeStop.StopID === 'string' ? routeStop.StopID : routeStop.StopID?.StopID
-    );
+    // Normalize and validate StopIDs
+    const stopIdSet = new Set<string>();
+    const normalizedStops: { StopID: string; StopOrder: number }[] = [];
 
-    // Check for duplicate StopIDs in RouteStops
-    const uniqueStopIds = new Set(routeStopIds);
-    if (uniqueStopIds.size !== routeStopIds.length) {
-      return NextResponse.json(
-        { error: 'No duplicate stops allowed in the RouteStops list.' },
-        { status: 400 }
-      );
+    for (const stop of rawRouteStops) {
+      const stopId = typeof stop.StopID === 'string' ? stop.StopID : stop.StopID?.StopID;
+      if (!stopId || stopIdSet.has(stopId)) {
+        return NextResponse.json(
+          { error: 'No duplicate stops allowed in the RouteStops list.' },
+          { status: 400 }
+        );
+      }
+      stopIdSet.add(stopId);
+      normalizedStops.push({ StopID: stopId, StopOrder: stop.StopOrder });
     }
 
-    // Check StartStopID and EndStopID are different
     if (data.StartStopID === data.EndStopID) {
       return NextResponse.json(
         { error: 'StartStop and EndStop cannot be the same.' },
@@ -64,57 +77,57 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if StartStopID or EndStopID is included in RouteStops
-    if (uniqueStopIds.has(data.StartStopID)) {
+    if (stopIdSet.has(data.StartStopID)) {
       return NextResponse.json(
         { error: 'StartStop should not be included in RouteStops list.' },
         { status: 400 }
       );
     }
-    if (uniqueStopIds.has(data.EndStopID)) {
+
+    if (stopIdSet.has(data.EndStopID)) {
       return NextResponse.json(
         { error: 'EndStop should not be included in RouteStops list.' },
         { status: 400 }
       );
     }
 
-    // Create the Route
     const newRouteID = await generateFormattedID('RT');
 
-    const newRoute = await prisma.route.create({
-      data: {
-        RouteID: newRouteID,
-        RouteName: data.RouteName,
-        StartStopID: data.StartStopID,
-        EndStopID: data.EndStopID,
-        IsDeleted: false,
-      },
-    });
+    // Pre-generate RouteStopIDs (not awaited, just values)
+    const stopIdsWithRouteStopIDs = await Promise.all(
+      normalizedStops.map(async stop => ({
+        ...stop,
+        RouteStopID: await generateFormattedID('RTS')
+      }))
+    );
 
-    // Create RouteStops
-    if (routeStopIds.length > 0) {
-      const createdRouteStops = await Promise.all(
-        rawRouteStops.map(async (routeStop) => {
-          const stopIdValue = typeof routeStop.StopID === 'string'
-            ? routeStop.StopID
-            : routeStop.StopID?.StopID;
-
-          const RouteStopID = await generateFormattedID('RTS');
-
-          return prisma.routeStop.create({
-            data: {
-              RouteStopID,
-              RouteID: newRouteID,
-              StopID: stopIdValue,
-              StopOrder: routeStop.StopOrder,
-            },
-          });
+    // Prepare Prisma transaction queries (PrismaPromises)
+    const queries = [
+      prisma.route.create({
+        data: {
+          RouteID: newRouteID,
+          RouteName: data.RouteName,
+          StartStopID: data.StartStopID,
+          EndStopID: data.EndStopID,
+          IsDeleted: false,
+        },
+      }),
+      ...stopIdsWithRouteStopIDs.map(stop =>
+        prisma.routeStop.create({
+          data: {
+            RouteStopID: stop.RouteStopID,
+            RouteID: newRouteID,
+            StopID: stop.StopID,
+            StopOrder: stop.StopOrder,
+          },
         })
-      );
+      )
+    ];
 
-    } 
+    const [newRoute] = await prisma.$transaction(queries);
 
     return NextResponse.json(newRoute, { status: 201 });
+
   } catch (error: unknown) {
     if (
       error instanceof PrismaClientKnownRequestError &&

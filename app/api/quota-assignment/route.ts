@@ -5,27 +5,31 @@ import { generateFormattedID } from '../../../lib/idGenerator';
 export async function GET() {
   try {
     const assignments = await prisma.quota_Policy.findMany({
-        include: {
-            Fixed: {
-                select: {
-                    Quota: true,
-                }
-            },
-            Percentage: {
-                select: {
-                    Percentage: true,
-                }
-            },
-            RegularBusAssignments: {
-                select: {
-                    RegularBusAssignmentID: true,
-                }
-            },
-        }
+      select: {
+        QuotaPolicyID: true,
+        StartDate: true,
+        EndDate: true,
+        Fixed: {
+          select: {
+            Quota: true,
+          },
+        },
+        Percentage: {
+          select: {
+            Percentage: true,
+          },
+        },
+        RegularBusAssignments: {
+          select: {
+            RegularBusAssignmentID: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json(assignments);
+    return NextResponse.json(assignments, { status: 200 });
   } catch (error) {
+    console.error('GET /quota-policy error:', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
 }
@@ -33,6 +37,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
+    const { type, value } = data;
+
+    if (!['Fixed', 'Percentage'].includes(type) || isNaN(parseFloat(value))) {
+      return NextResponse.json(
+        { error: 'Invalid type or value. Type must be "Fixed" or "Percentage", and value must be a number.' },
+        { status: 400 }
+      );
+    }
 
     const newQuotaPolicyID = await generateFormattedID('QP');
 
@@ -41,27 +53,24 @@ export async function POST(request: Request) {
         QuotaPolicyID: newQuotaPolicyID,
         StartDate: new Date(),
         EndDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-        ...(data.type === 'Fixed'
-          ? { Fixed: { create: { Quota: parseFloat(data.value) } } }
-          : { Percentage: { create: { Percentage: parseFloat(data.value) / 100 } } }),
+        ...(type === 'Fixed'
+          ? { Fixed: { create: { Quota: parseFloat(value) } } }
+          : { Percentage: { create: { Percentage: parseFloat(value) / 100 } } }),
       },
-      include: {
-        Fixed: {
-          select: { Quota: true },
-        },
-        Percentage: {
-          select: { Percentage: true },
-        },
-        RegularBusAssignments: {
-          select: { RegularBusAssignmentID: true },
-        },
+      select: {
+        QuotaPolicyID: true,
+        StartDate: true,
+        EndDate: true,
+        Fixed: { select: { Quota: true } },
+        Percentage: { select: { Percentage: true } },
+        RegularBusAssignments: { select: { RegularBusAssignmentID: true } },
       }
     });
 
     return NextResponse.json(newQuotaPolicy, { status: 201 });
 
   } catch (error) {
-
+    console.error('POST /quota-policy error:', error);
     return NextResponse.json({ error: 'Failed to create quota policy' }, { status: 500 });
   }
 }

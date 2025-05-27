@@ -1,40 +1,40 @@
-import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/client';
+import { BusOperationStatus } from '@prisma/client';
 
-enum BusOperationStatus {
-  NotStarted = 'NotStarted',
-  InOperation = 'InOperation',
-  Completed = 'Completed',
-}
-
-type BusAssignmentWhereInput = {
-  IsDeleted?: boolean;
-  Status?: BusOperationStatus;
-};
-
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
 
-    const whereClause: BusAssignmentWhereInput = { IsDeleted: false };
+    // Build where clause with strict typing
+    const whereClause: {
+      IsDeleted: boolean;
+      Status?: BusOperationStatus;
+    } = { IsDeleted: false };
 
     if (status !== null) {
-      if (
-        status === BusOperationStatus.NotStarted ||
-        status === BusOperationStatus.InOperation ||
-        status === BusOperationStatus.Completed
-      ) {
-        whereClause.Status = status;
-      } else {
+      const validStatuses = Object.values(BusOperationStatus);
+      if (!validStatuses.includes(status as BusOperationStatus)) {
         return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
       }
+      whereClause.Status = status as BusOperationStatus;
     }
 
     const busAssignments = await prisma.busAssignment.findMany({
       where: whereClause,
       include: {
-        RegularBusAssignment: true,
+        RegularBusAssignment: {
+          include: {
+            quotaPolicy: {
+              select: {
+                QuotaPolicyID: true,
+                StartDate: true,
+                EndDate: true,
+              },
+            },
+          },
+        },
         TicketBusAssignments: {
           include: {
             TicketType: true,
@@ -45,6 +45,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(busAssignments);
   } catch (error) {
+    console.error('Error fetching bus assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch bus assignments' }, { status: 500 });
   }
 }

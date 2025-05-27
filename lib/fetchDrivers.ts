@@ -1,79 +1,87 @@
 import { redis } from '@/lib/redis';
 
-const CACHE_KEY_ALL_DRIVERS = 'drivers_data';
 const TTL_SECONDS = 60 * 60; // 1 hour cache
+const CACHE_KEY_ALL = 'drivers_data';
+
+function getSupabaseHeaders() {
+  return {
+    apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  };
+}
 
 export async function fetchDrivers() {
-  // Try to get cached data
-  const cached = await redis.get(CACHE_KEY_ALL_DRIVERS);
-  if (cached !== null && typeof cached === 'string') {
-    return JSON.parse(cached);
+  // 1. Try cache
+  const cached = await redis.get(CACHE_KEY_ALL);
+  if (cached && typeof cached === 'string') {
+    try {
+      return JSON.parse(cached);
+    } catch {
+      await redis.del(CACHE_KEY_ALL);
+    }
   }
 
-  // If no cache, fetch fresh data from Supabase
+  // 2. Fetch from Supabase
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/drivers`;
-
-  const res = await fetch(url, {
-    headers: {
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
-    },
-  });
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch drivers: ${res.statusText}`);
+    const errorBody = await res.text();
+    console.error('Supabase error body:', errorBody);
+    throw new Error(`Failed to fetch drivers: ${res.status} ${res.statusText}`);
   }
 
   const freshData = await res.json();
 
-  // Cache fresh data in Redis
-  await redis.set(CACHE_KEY_ALL_DRIVERS, JSON.stringify(freshData), { ex: TTL_SECONDS });
+  // 3. Cache result
+  await redis.set(CACHE_KEY_ALL, JSON.stringify(freshData), { ex: TTL_SECONDS });
 
   return freshData;
 }
 
 export async function fetchDriverById(driverId: string) {
-  const CACHE_KEY = `driver_data_${driverId}`;
+  const individualKey = `driver_data_${driverId}`;
 
-  // 1. Try individual driver cache
-  const cached = await redis.get(CACHE_KEY);
+  // 1. Try individual cache
+  const cached = await redis.get(individualKey);
   if (cached && typeof cached === 'string') {
-    return JSON.parse(cached);
-  }
-
-  // 2. Try searching from cached list of all drivers
-  const allDriversCache = await redis.get('drivers_data');
-  if (allDriversCache && typeof allDriversCache === 'string') {
-    const drivers = JSON.parse(allDriversCache);
-    const driver = drivers.find((d: any) => d.driver_id === driverId);
-
-    if (driver) {
-      // Cache individually for future quick access
-      await redis.set(CACHE_KEY, JSON.stringify(driver), { ex: TTL_SECONDS });
-      return driver;
+    try {
+      return JSON.parse(cached);
+    } catch {
+      await redis.del(individualKey);
     }
   }
 
-  // 3. Fallback to Supabase fetch if not found in any cache
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/drivers?driver_id=eq.${encodeURIComponent(driverId)}`;
-
-  const res = await fetch(url, {
-    headers: {
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch driver: ${res.statusText}`);
+  // 2. Try global cache
+  const allDriversCache = await redis.get(CACHE_KEY_ALL);
+  if (allDriversCache && typeof allDriversCache === 'string') {
+    try {
+      const drivers = JSON.parse(allDriversCache);
+      const driver = drivers.find((d: any) => d.driver_id === driverId);
+      if (driver) {
+        await redis.set(individualKey, JSON.stringify(driver), { ex: TTL_SECONDS });
+        return driver;
+      }
+    } catch {
+      await redis.del(CACHE_KEY_ALL);
+    }
   }
 
-  const drivers = await res.json();
-  const driver = drivers.length > 0 ? drivers[0] : null;
+  // 3. Fallback to Supabase
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/drivers?driver_id=eq.${encodeURIComponent(driverId)}`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
 
-  // 4. Cache it individually if found
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error('Supabase error body:', errorBody);
+    throw new Error(`Failed to fetch driver with ID ${driverId}: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const driver = data.length > 0 ? data[0] : null;
+
+  // 4. Cache result
   if (driver) {
-    await redis.set(CACHE_KEY, JSON.stringify(driver), { ex: TTL_SECONDS });
+    await redis.set(individualKey, JSON.stringify(driver), { ex: TTL_SECONDS });
   }
 
   return driver;

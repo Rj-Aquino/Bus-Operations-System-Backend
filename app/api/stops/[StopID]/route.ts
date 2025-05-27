@@ -3,45 +3,51 @@ import prisma from '@/client';
 
 export async function PUT(request: Request) {
   try {
-    // Extract StopID from URL path (last segment)
     const url = new URL(request.url);
     const StopID = url.pathname.split('/').pop();
 
     if (!StopID) {
-      return NextResponse.json({ error: 'StopID is required in the URL' }, { status: 400 });
+      return NextResponse.json({ error: 'StopID is required in the URL.' }, { status: 400 });
     }
 
-    const data = await request.json();
-    const { StopName, latitude, longitude, IsDeleted } = data;
+    const { StopName, latitude, longitude, IsDeleted } = await request.json();
 
+    // Check if stop exists
     const existingStop = await prisma.stop.findUnique({
       where: { StopID },
+      select: { StopID: true },
     });
 
     if (!existingStop) {
       return NextResponse.json({ error: 'Stop not found.' }, { status: 404 });
     }
 
-    if (IsDeleted === true) {
-      const softDeletedStop = await prisma.stop.update({
-        where: { StopID },
-        data: { IsDeleted: true },
-      });
-      return NextResponse.json(softDeletedStop, { status: 200 });
+    // Prepare update data dynamically
+    const updateData: Record<string, any> = {};
+    if (typeof StopName === 'string') updateData.StopName = StopName;
+    if (typeof latitude === 'string') updateData.latitude = latitude;
+    if (typeof longitude === 'string') updateData.longitude = longitude;
+    if (typeof IsDeleted === 'boolean') updateData.IsDeleted = IsDeleted;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid fields provided for update.' }, { status: 400 });
     }
 
     const updatedStop = await prisma.stop.update({
       where: { StopID },
-      data: {
-        StopName,
-        latitude,
-        longitude,
-        IsDeleted: false,
+      data: updateData,
+      select: {
+        StopID: true,
+        StopName: true,
+        latitude: true,
+        longitude: true,
+        IsDeleted: true,
       },
     });
 
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
+    console.error('Failed to update stop:', error);
     return NextResponse.json({ error: 'Failed to update stop' }, { status: 500 });
   }
 }
@@ -52,31 +58,38 @@ export async function PATCH(req: NextRequest) {
     const StopID = url.pathname.split('/').pop();
 
     if (!StopID) {
-      return NextResponse.json(
-        { error: 'StopID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'StopID is required in the URL.' }, { status: 400 });
     }
 
     const { isDeleted } = await req.json();
 
     if (typeof isDeleted !== 'boolean') {
-      return NextResponse.json(
-        { error: 'isDeleted must be a boolean' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '`isDeleted` must be a boolean.' }, { status: 400 });
+    }
+
+    // Confirm the stop exists first (optional but better UX)
+    const existing = await prisma.stop.findUnique({
+      where: { StopID },
+      select: { StopID: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Stop not found.' }, { status: 404 });
     }
 
     const updatedStop = await prisma.stop.update({
       where: { StopID },
       data: { IsDeleted: isDeleted },
+      select: {
+        StopID: true,
+        StopName: true,
+        IsDeleted: true,
+      },
     });
 
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to update stop' },
-      { status: 500 }
-    );
+    console.error('Error in PATCH /stop:', error);
+    return NextResponse.json({ error: 'Failed to update stop.' }, { status: 500 });
   }
 }

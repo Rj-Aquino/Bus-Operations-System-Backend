@@ -1,5 +1,5 @@
-import cuid from "cuid";
+import { createId } from '@paralleldrive/cuid2';
 
-export async function generateFormattedID(prefix: string): Promise<string> {
-  return `${prefix}-${cuid()}`;
+export function generateFormattedID(prefix: string): string {
+  return `${prefix}-${createId()}`;
 }
