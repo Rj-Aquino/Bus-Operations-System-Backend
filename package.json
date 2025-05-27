@@ -1,0 +1,45 @@
+{
+  "name": "bus-operations-system-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prisma": "prisma",
+    "seed": "prisma db seed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rj-Aquino/Bus-Operations-System-Backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Rj-Aquino/Bus-Operations-System-Backend/issues"
+  },
+  "homepage": "https://github.com/Rj-Aquino/Bus-Operations-System-Backend#readme",
+  "prisma": {
+    "seed": "ts-node --project tsconfig.prisma.json prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.6",
+    "prisma": "^6.8.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "cuid": "^3.0.0",
+    "next": "^15.3.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}

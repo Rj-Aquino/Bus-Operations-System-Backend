@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Quota_Policy {
+  QuotaPolicyID String @id
+  StartDate     DateTime
+  EndDate       DateTime
+
+  Fixed Fixed?
+  Percentage Percentage?
+  RegularBusAssignments RegularBusAssignment[]
+}
+
+model Fixed {
+  FQuotaPolicyID String @id
+  Quota Float 
+
+  quotaPolicy Quota_Policy @relation(fields: [FQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)  
+}
+
+model Percentage {
+  PQuotaPolicyID String @id
+  Percentage     Float
+  quotaPolicy    Quota_Policy @relation(fields: [PQuotaPolicyID], references: [QuotaPolicyID], onDelete: Cascade)
+}
+
+model Stop {
+  StopID     String @id
+  StopName   String
+  latitude   String
+  longitude  String        
+  IsDeleted  Boolean
+
+  routesAsStart  Route[]   @relation("StartStop")
+  routesAsEnd    Route[]   @relation("EndStop")
+  RouteStops     RouteStop[]
+}
+
+model Route {
+  RouteID       String @id
+  StartStopID   String 
+  EndStopID     String 
+  RouteName     String
+  IsDeleted  Boolean
+
+  StartStop     Stop               @relation("StartStop", fields: [StartStopID], references: [StopID])
+  EndStop       Stop               @relation("EndStop", fields: [EndStopID], references: [StopID])
+  RouteStops    RouteStop[]
+  BusAssignments BusAssignment[]
+}
+
+model RouteStop {
+  RouteStopID String @id
+  RouteID     String 
+  StopID      String
+  StopOrder   Int
+  Route       Route @relation(fields: [RouteID], references: [RouteID])
+  Stop        Stop  @relation(fields: [StopID], references: [StopID])
+
+  @@unique([RouteID, StopID])
+}
+
+enum BusOperationStatus {
+  NotStarted
+  InOperation
+  Completed
+}
+
+model TicketType {
+  TicketTypeID           String                @id
+  Value                  Float
+  TicketBusAssignments   TicketBusAssignment[]
+
+  @@map("Ticket_Type")
+}
+
+model TicketBusAssignment {
+  TicketBusAssignmentID  String                @id
+  BusAssignmentID        String
+  TicketTypeID           String
+  StartingIDNumber       Int
+  EndingIDNumber         Int
+
+  BusAssignment          BusAssignment         @relation(fields: [BusAssignmentID], references: [BusAssignmentID])
+  TicketType             TicketType            @relation(fields: [TicketTypeID], references: [TicketTypeID])
+
+  @@map("TicketBusAssignment")
+}
+
+model BusAssignment {
+  BusAssignmentID String @id
+  BusID           String
+  RouteID         String 
+  AssignmentDate  DateTime
+  Battery         Boolean @default(false)
+  Lights          Boolean @default(false)
+  Oil             Boolean @default(false)
+  Water           Boolean @default(false)
+  Break           Boolean @default(false)
+  Air             Boolean @default(false)
+  Gas             Boolean @default(false)
+  Engine          Boolean @default(false)
+  TireCondition   Boolean @default(false)
+  Self_Driver     Boolean @default(false)
+  Self_Conductor  Boolean @default(false)
+  IsDeleted       Boolean @default(false)
+  Status          BusOperationStatus @default(NotStarted)
+
+  Route                Route                 @relation(fields: [RouteID], references: [RouteID])
+  RegularBusAssignment RegularBusAssignment?
+  TicketBusAssignments   TicketBusAssignment[]
+
+  @@index([BusID])
+}
+
+model RegularBusAssignment {
+  RegularBusAssignmentID String @id
+  DriverID               String 
+  ConductorID            String 
+  QuotaPolicyID          String 
+  Change                 Float
+  TripRevenue            Float
+  quotaPolicy            Quota_Policy         @relation(fields: [QuotaPolicyID], references: [QuotaPolicyID])
+  BusAssignment          BusAssignment        @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
+
+  @@index([DriverID])
+  @@index([ConductorID])
+}
