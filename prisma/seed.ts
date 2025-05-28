@@ -286,8 +286,7 @@ async function seedBusAssignments() {
       TireCondition: true,
       Self_Driver: true,
       Self_Conductor: true,
-      Status: 'InOperation',
-      IsDeleted: false,
+      Status: 'InOperation'
     },
   });
 
@@ -357,12 +356,10 @@ async function seedRegularBusAssignments() {
 
   const [busAssignments, quotaPolicies] = await Promise.all([
     prisma.busAssignment.findMany({
-      orderBy: { AssignmentDate: 'asc' },  // Order by AssignmentDate or another field
-      take: 2,  // Assuming you need the first two BusAssignments
+      take: 2, 
     }),
     prisma.quota_Policy.findMany({
-      orderBy: { StartDate: 'asc' },  // Order by StartDate or another field
-      take: 2,  // Assuming you need the first two QuotaPolicies
+      take: 2,
     }),
   ]);
 

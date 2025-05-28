@@ -22,7 +22,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "bugs": {
     "url": "https://github.com/Rj-Aquino/Bus-Operations-System-Backend/issues"
   },
@@ -31,6 +30,7 @@
     "seed": "ts-node --project tsconfig.prisma.json prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.15.23",
     "@types/react": "19.1.6",
     "eslint": "^9.27.0",
     "prisma": "^6.8.2",

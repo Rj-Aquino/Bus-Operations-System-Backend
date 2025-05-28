@@ -13,30 +13,6 @@ export async function GET() {
         StopName: true,
         latitude: true,
         longitude: true,
-        routesAsStart: {
-          select: {
-            RouteID: true,
-            RouteName: true,
-          },
-        },
-        routesAsEnd: {
-          select: {
-            RouteID: true,
-            RouteName: true,
-          },
-        },
-        RouteStops: {
-          select: {
-            RouteStopID: true,
-            StopOrder: true,
-            Route: {
-              select: {
-                RouteID: true,
-                RouteName: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -68,8 +44,7 @@ export async function POST(req: Request) {
         StopID,
         StopName,
         latitude,
-        longitude,
-        IsDeleted: false,
+        longitude
       },
       select: {
         StopID: true,

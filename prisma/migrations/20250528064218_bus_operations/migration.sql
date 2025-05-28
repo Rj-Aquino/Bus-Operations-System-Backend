@@ -4,8 +4,8 @@ CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'InOperation', 'Complete
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
     "QuotaPolicyID" TEXT NOT NULL,
-    "StartDate" TIMESTAMP(3) NOT NULL,
-    "EndDate" TIMESTAMP(3) NOT NULL,
+    "StartDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "EndDate" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + interval '1 year'),
 
     CONSTRAINT "Quota_Policy_pkey" PRIMARY KEY ("QuotaPolicyID")
 );
@@ -32,7 +32,7 @@ CREATE TABLE "Stop" (
     "StopName" TEXT NOT NULL,
     "latitude" TEXT NOT NULL,
     "longitude" TEXT NOT NULL,
-    "IsDeleted" BOOLEAN NOT NULL,
+    "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Stop_pkey" PRIMARY KEY ("StopID")
 );
@@ -43,7 +43,7 @@ CREATE TABLE "Route" (
     "StartStopID" TEXT NOT NULL,
     "EndStopID" TEXT NOT NULL,
     "RouteName" TEXT NOT NULL,
-    "IsDeleted" BOOLEAN NOT NULL,
+    "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Route_pkey" PRIMARY KEY ("RouteID")
 );
@@ -106,8 +106,8 @@ CREATE TABLE "RegularBusAssignment" (
     "DriverID" TEXT NOT NULL,
     "ConductorID" TEXT NOT NULL,
     "QuotaPolicyID" TEXT NOT NULL,
-    "Change" DOUBLE PRECISION NOT NULL,
-    "TripRevenue" DOUBLE PRECISION NOT NULL,
+    "Change" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "TripRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
 
     CONSTRAINT "RegularBusAssignment_pkey" PRIMARY KEY ("RegularBusAssignmentID")
 );

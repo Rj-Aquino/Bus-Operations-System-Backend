@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import { updateQuotaPolicy } from '@/lib/quotaPolicy';
 
 export async function PUT(request: Request) {
   try {
@@ -18,29 +19,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // === Soft Delete Case ===
-    if (data.IsDeleted === true) {
-      const updated = await prisma.busAssignment.update({
-        where: { BusAssignmentID },
-        data: { IsDeleted: true },
-        select: { BusAssignmentID: true, IsDeleted: true },
-      });
-      return NextResponse.json(updated, { status: 200 });
-    }
-
-    // === Fetch Existing Data (minimal fields) ===
+    // === Fetch existing RegularBusAssignment and QuotaPolicyID ===
     const existing = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
-        BusAssignmentID: true,
         RegularBusAssignment: {
           select: {
             RegularBusAssignmentID: true,
-            quotaPolicy: {
-              select: {
-                QuotaPolicyID: true,
-              },
-            },
+            quotaPolicy: { select: { QuotaPolicyID: true } },
           },
         },
       },
@@ -50,32 +36,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'BusAssignment or RegularBusAssignment not found' }, { status: 404 });
     }
 
-    // === Conditionally Update QuotaPolicy ===
-    const quotaPolicyId = existing.RegularBusAssignment.quotaPolicy?.QuotaPolicyID;
-    if (quotaPolicyId && data.type && data.value) {
-      const baseUrl = process.env.APPLICATION_URL;
-      if (!baseUrl) {
-        return NextResponse.json({ error: 'Base URL not defined' }, { status: 500 });
-      }
+    const QuotaPolicyID = existing.RegularBusAssignment.quotaPolicy?.QuotaPolicyID;
 
-      const quotaResponse = await fetch(`${baseUrl}/api/quota-assignment/${quotaPolicyId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: data.type,
-          value: data.value,
-          StartDate: data.StartDate,
-          EndDate: data.EndDate,
-        }),
+    // === Update QuotaPolicy directly (if type & value are provided) ===
+    if (QuotaPolicyID && data.type && data.value != null) {
+      await updateQuotaPolicy(QuotaPolicyID, {
+        type: data.type,
+        value: data.value,
+        StartDate: data.StartDate,
+        EndDate: data.EndDate,
       });
-
-      if (!quotaResponse.ok) {
-        const quotaError = await quotaResponse.json();
-        return NextResponse.json(
-          { error: quotaError?.error || 'Failed to update QuotaPolicy' },
-          { status: 502 }
-        );
-      }
     }
 
     // === Update BusAssignment and RegularBusAssignment ===
@@ -96,7 +66,6 @@ export async function PUT(request: Request) {
         BusID: true,
         RouteID: true,
         AssignmentDate: true,
-        IsDeleted: true,
         RegularBusAssignment: {
           select: {
             DriverID: true,
@@ -116,7 +85,7 @@ export async function PUT(request: Request) {
     return NextResponse.json(updated, { status: 200 });
 
   } catch (error) {
-    console.error('[UPDATE_ASSIGNMENT_ERROR]', error);
+    console.error('UPDATE_ASSIGNMENT_ERROR', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 }
@@ -131,17 +100,16 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { isDeleted } = body;
+    const { IsDeleted } = body;
 
-    if (typeof isDeleted !== 'boolean') {
+    if (typeof IsDeleted !== 'boolean') {
       return NextResponse.json({ error: '`isDeleted` must be a boolean' }, { status: 400 });
     }
 
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
-      data: { IsDeleted: isDeleted },
+      data: { IsDeleted: IsDeleted },
       select: {
-        BusAssignmentID: true,
         IsDeleted: true,
       },
     });
@@ -149,7 +117,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(updated, { status: 200 });
 
   } catch (error) {
-    console.error('[PATCH_ASSIGNMENT_ERROR]', error);
+    console.error('PATCH_ASSIGNMENT_ERROR', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 }

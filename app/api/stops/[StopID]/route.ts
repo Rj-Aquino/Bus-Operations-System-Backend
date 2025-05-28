@@ -10,7 +10,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'StopID is required in the URL.' }, { status: 400 });
     }
 
-    const { StopName, latitude, longitude, IsDeleted } = await request.json();
+    const { StopName, latitude, longitude} = await request.json();
 
     // Check if stop exists
     const existingStop = await prisma.stop.findUnique({
@@ -27,7 +27,6 @@ export async function PUT(request: Request) {
     if (typeof StopName === 'string') updateData.StopName = StopName;
     if (typeof latitude === 'string') updateData.latitude = latitude;
     if (typeof longitude === 'string') updateData.longitude = longitude;
-    if (typeof IsDeleted === 'boolean') updateData.IsDeleted = IsDeleted;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No valid fields provided for update.' }, { status: 400 });
@@ -40,8 +39,7 @@ export async function PUT(request: Request) {
         StopID: true,
         StopName: true,
         latitude: true,
-        longitude: true,
-        IsDeleted: true,
+        longitude: true
       },
     });
 
@@ -61,13 +59,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'StopID is required in the URL.' }, { status: 400 });
     }
 
-    const { isDeleted } = await req.json();
+    const { IsDeleted } = await req.json();
 
-    if (typeof isDeleted !== 'boolean') {
+    if (typeof IsDeleted !== 'boolean') {
       return NextResponse.json({ error: '`isDeleted` must be a boolean.' }, { status: 400 });
     }
 
-    // Confirm the stop exists first (optional but better UX)
     const existing = await prisma.stop.findUnique({
       where: { StopID },
       select: { StopID: true },
@@ -79,10 +76,8 @@ export async function PATCH(req: NextRequest) {
 
     const updatedStop = await prisma.stop.update({
       where: { StopID },
-      data: { IsDeleted: isDeleted },
+      data: { IsDeleted: IsDeleted },
       select: {
-        StopID: true,
-        StopName: true,
         IsDeleted: true,
       },
     });

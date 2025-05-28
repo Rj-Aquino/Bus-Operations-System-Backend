@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
-import { generateFormattedID } from '../../../lib/idGenerator';
+import { generateFormattedID } from '@/lib/idGenerator';
+import { createQuotaPolicy } from '@/lib/quotaPolicy';
 
 export async function GET() {
   try {
@@ -14,8 +15,6 @@ export async function GET() {
         RegularBusAssignmentID: true,
         DriverID: true,
         ConductorID: true,
-        Change: true,
-        TripRevenue: true,
         quotaPolicy: {
           select: {
             QuotaPolicyID: true,
@@ -33,9 +32,6 @@ export async function GET() {
         },
         BusAssignment: {
           select: {
-            BusAssignmentID: true,
-            AssignmentDate: true,
-            Status: true,
             Route: {
               select: {
                 RouteID: true,
@@ -49,7 +45,7 @@ export async function GET() {
 
     return NextResponse.json(assignments);
   } catch (error) {
-    console.error('[REGULAR_ASSIGNMENTS_ERROR]', error);
+    console.error('REGULAR_ASSIGNMENTS_ERROR', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
 }
@@ -57,59 +53,33 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const baseUrl = process.env.APPLICATION_URL;
 
-    // === Validate Required Fields (excluding AssignmentDate) ===
-    const requiredFields = ['BusID', 'RouteID', 'DriverID', 'ConductorID', 'QuotaPolicy'];
+    const requiredFields = ['BusID', 'RouteID', 'DriverID', 'ConductorID'];
     for (const field of requiredFields) {
-      if (
-        !data[field] ||
-        (typeof data[field] === 'string' && data[field].trim() === '') ||
-        (field === 'QuotaPolicy' &&
-          (!data.QuotaPolicy?.type || data.QuotaPolicy.value == null))
-      ) {
-        return NextResponse.json(
-          { error: `Missing or empty required field: ${field}` },
-          { status: 400 }
-        );
+      if (!data[field] || (typeof data[field] === 'string' && data[field].trim() === '')) {
+        return NextResponse.json({ error: `Missing or empty required field: ${field}` }, { status: 400 });
       }
     }
 
-    // === Validate Driver and Conductor are not the same ===
+    if (!data.QuotaPolicy?.type || data.QuotaPolicy.value == null) {
+      return NextResponse.json({ error: 'Missing or invalid QuotaPolicy' }, { status: 400 });
+    }
+
     const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id.split('-')[1]);
     if (driverSuffix === conductorSuffix) {
-      return NextResponse.json(
-        { error: 'Driver and Conductor cannot be the same person' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // === Generate IDs in parallel ===
-    const [quotaPolicyResponse, newBusAssignmentID] = await Promise.all([
-      fetch(`${baseUrl}/api/quota-assignment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: data.QuotaPolicy.type,
-          value: data.QuotaPolicy.value,
-        }),
-      }),
+    // === Create IDs & Related Entities in Parallel ===
+    const [busAssignmentID, quotaPolicy] = await Promise.all([
       generateFormattedID('BA'),
+      createQuotaPolicy({ type: data.QuotaPolicy.type, value: data.QuotaPolicy.value }),
     ]);
 
-    if (!quotaPolicyResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to create QuotaPolicy from API' },
-        { status: 502 }
-      );
-    }
-
-    const newQuotaPolicy = await quotaPolicyResponse.json();
-
-    // === Create BusAssignment with related RegularBusAssignment ===
-    const newAssignment = await prisma.busAssignment.create({
+    // === Create BusAssignment in Transaction ===
+    const assignment = await prisma.busAssignment.create({
       data: {
-        BusAssignmentID: newBusAssignmentID,
+        BusAssignmentID: busAssignmentID,
         BusID: data.BusID,
         RouteID: data.RouteID,
         AssignmentDate: data.AssignmentDate ? new Date(data.AssignmentDate) : new Date(),
@@ -117,9 +87,7 @@ export async function POST(request: Request) {
           create: {
             DriverID: data.DriverID,
             ConductorID: data.ConductorID,
-            QuotaPolicyID: newQuotaPolicy.QuotaPolicyID,
-            Change: data.Change ?? 0,
-            TripRevenue: data.TripRevenue ?? 0,
+            QuotaPolicyID: quotaPolicy.QuotaPolicyID,
           },
         },
       },
@@ -144,13 +112,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(newAssignment, { status: 201 });
-
+    return NextResponse.json(assignment, { status: 201 });
   } catch (error) {
-    console.error('[CREATE_ASSIGNMENT_ERROR]', error);
-    return NextResponse.json(
-      { error: 'Failed to create BusAssignment' },
-      { status: 500 }
-    );
+    console.error('CREATE_ASSIGNMENT_ERROR:', error);
+    return NextResponse.json({ error: 'Failed to create BusAssignment' }, { status: 500 });
   }
 }

@@ -12,7 +12,7 @@ function getSupabaseHeaders() {
 }
 
 export async function fetchBuses() {
-  // 1. Try global cache
+
   const cached = await redis.get(GLOBAL_CACHE_KEY);
   if (cached && typeof cached === 'string') {
     try {
@@ -22,8 +22,7 @@ export async function fetchBuses() {
     }
   }
 
-  // 2. Fallback: fetch from Supabase
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses`;
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?select=busId,route,type,capacity`;
   const res = await fetch(url, { headers: getSupabaseHeaders() });
 
   if (!res.ok) {
@@ -32,54 +31,36 @@ export async function fetchBuses() {
 
   const freshData = await res.json();
 
-  // 3. Cache fresh data
   await redis.set(GLOBAL_CACHE_KEY, JSON.stringify(freshData), { ex: TTL_SECONDS });
 
   return freshData;
 }
 
 export async function fetchBusById(busId: string) {
-  const individualCacheKey = `bus_data_${busId}`;
-
-  // 1. Try individual cache
-  const cached = await redis.get(individualCacheKey);
-  if (cached && typeof cached === 'string') {
-    try {
-      return JSON.parse(cached);
-    } catch {
-      await redis.del(individualCacheKey); // Remove corrupt cache
-    }
-  }
-
-  // 2. Try global cache
+  // 1. Try global cache
   const allBusesCache = await redis.get(GLOBAL_CACHE_KEY);
   if (allBusesCache && typeof allBusesCache === 'string') {
     try {
       const buses = JSON.parse(allBusesCache);
       const bus = buses.find((b: any) => b.busId === busId);
-      if (bus) {
-        await redis.set(individualCacheKey, JSON.stringify(bus), { ex: TTL_SECONDS });
-        return bus;
+      if (bus && bus.license_plate) {
+        return { license_plate: bus.license_plate };
       }
     } catch {
       await redis.del(GLOBAL_CACHE_KEY); // Corrupt global cache
     }
   }
 
-  // 3. Fallback: fetch from Supabase
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?busId=eq.${encodeURIComponent(busId)}`;
+  // 2. Fallback: fetch only license_plate from Supabase
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?busId=eq.${encodeURIComponent(busId)}&select=busId,license_plate`;
   const res = await fetch(url, { headers: getSupabaseHeaders() });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch bus with ID ${busId}: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to fetch bus license plate with ID ${busId}: ${res.status} ${res.statusText}`);
   }
 
   const data = await res.json();
-  const bus = data.length > 0 ? data[0] : null;
+  const licenseInfo = data.length > 0 ? data[0] : null;
 
-  if (bus) {
-    await redis.set(individualCacheKey, JSON.stringify(bus), { ex: TTL_SECONDS });
-  }
-
-  return bus;
+  return licenseInfo;
 }

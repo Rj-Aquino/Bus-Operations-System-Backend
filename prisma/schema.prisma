@@ -9,9 +9,9 @@ datasource db {
 
 model Quota_Policy {
   QuotaPolicyID String @id
-  StartDate     DateTime
-  EndDate       DateTime
-
+  StartDate     DateTime @default(now())
+  EndDate       DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + interval '1 year')"))
+  
   Fixed Fixed?
   Percentage Percentage?
   RegularBusAssignments RegularBusAssignment[]
@@ -35,7 +35,7 @@ model Stop {
   StopName   String
   latitude   String
   longitude  String        
-  IsDeleted  Boolean
+  IsDeleted  Boolean  @default(false)
 
   routesAsStart  Route[]   @relation("StartStop")
   routesAsEnd    Route[]   @relation("EndStop")
@@ -47,7 +47,7 @@ model Route {
   StartStopID   String 
   EndStopID     String 
   RouteName     String
-  IsDeleted  Boolean
+  IsDeleted     Boolean  @default(false)
 
   StartStop     Stop               @relation("StartStop", fields: [StartStopID], references: [StopID])
   EndStop       Stop               @relation("EndStop", fields: [EndStopID], references: [StopID])
@@ -124,8 +124,8 @@ model RegularBusAssignment {
   DriverID               String 
   ConductorID            String 
   QuotaPolicyID          String 
-  Change                 Float
-  TripRevenue            Float
+  Change                 Float  @default(0)
+  TripRevenue            Float  @default(0)
   quotaPolicy            Quota_Policy         @relation(fields: [QuotaPolicyID], references: [QuotaPolicyID])
   BusAssignment          BusAssignment        @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
 

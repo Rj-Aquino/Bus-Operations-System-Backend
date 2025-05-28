@@ -46,7 +46,8 @@ export async function PUT(request: Request) {
     const busAssignmentFields: BusAssignmentUpdateData = {};
     const booleanFields: (keyof BusAssignmentUpdateData)[] = [
       'Battery', 'Lights', 'Oil', 'Water', 'Break',
-      'Air', 'Gas', 'Engine', 'TireCondition', 'Self_Driver', 'Self_Conductor',
+      'Air', 'Gas', 'Engine', 'TireCondition',
+      'Self_Driver', 'Self_Conductor',
     ];
 
     if (body.Status) busAssignmentFields.Status = body.Status;
@@ -63,61 +64,115 @@ export async function PUT(request: Request) {
       include: { RegularBusAssignment: true },
     });
 
-    // Prepare RegularBusAssignment fields
-    const regularFields: (keyof RegularBusAssignmentUpdateData)[] = ['Change', 'TripRevenue'];
-    const regularBusAssignmentFields: RegularBusAssignmentUpdateData = {};
-
-    for (const field of regularFields) {
-      if (field in body) {
-        regularBusAssignmentFields[field] = Number(body[field]);
-      }
-    }
+    // Update RegularBusAssignment
+    const regularUpdateFields: RegularBusAssignmentUpdateData = {};
+    if ('Change' in body) regularUpdateFields.Change = Number(body.Change);
+    if ('TripRevenue' in body) regularUpdateFields.TripRevenue = Number(body.TripRevenue);
 
     if (updatedBusAssignment.RegularBusAssignment) {
-      if (Object.keys(regularBusAssignmentFields).length > 0) {
+      if (Object.keys(regularUpdateFields).length > 0) {
         await prisma.regularBusAssignment.update({
           where: {
             RegularBusAssignmentID: updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID,
           },
-          data: regularBusAssignmentFields,
+          data: regularUpdateFields,
         });
       }
-    } else if (Object.keys(regularBusAssignmentFields).length > 0) {
+    } else if (Object.keys(regularUpdateFields).length > 0) {
       return NextResponse.json({
         error: 'No RegularBusAssignment related to this BusAssignment to update Change or TripRevenue',
       }, { status: 400 });
     }
 
-    // Update TicketBusAssignments
+    // Update TicketBusAssignments scoped by BusAssignmentID and TicketTypeID
     if (Array.isArray(body.TicketBusAssignments)) {
       for (const ticket of body.TicketBusAssignments) {
-        const { TicketTypeID, Quantity } = ticket;
+        const { TicketTypeID, StartingIDNumber, EndingIDNumber } = ticket;
 
-        if (!TicketTypeID || typeof Quantity !== 'number' || Quantity <= 0) {
-          return NextResponse.json({ error: 'TicketTypeID and positive Quantity are required' }, { status: 400 });
+        if (
+          !TicketTypeID ||
+          typeof StartingIDNumber !== 'number' ||
+          typeof EndingIDNumber !== 'number' ||
+          StartingIDNumber < 0 ||
+          EndingIDNumber < StartingIDNumber
+        ) {
+          return NextResponse.json({
+            error: 'Valid TicketTypeID, StartingIDNumber and EndingIDNumber are required',
+          }, { status: 400 });
         }
 
-        const existingTicket = await prisma.ticketBusAssignment.findFirst({
-          where: { BusAssignmentID, TicketTypeID },
+        const existing = await prisma.ticketBusAssignment.findFirst({
+          where: {
+            BusAssignmentID,
+            TicketTypeID,
+          },
         });
 
-        if (!existingTicket) {
+        if (!existing) {
           return NextResponse.json({
-            error: `No TicketBusAssignment found for TicketTypeID: ${TicketTypeID}`,
+            error: `No TicketBusAssignment found for TicketTypeID: ${TicketTypeID} under this BusAssignment`,
           }, { status: 404 });
         }
 
         await prisma.ticketBusAssignment.updateMany({
-          where: { BusAssignmentID, TicketTypeID },
+          where: {
+            BusAssignmentID,
+            TicketTypeID,
+          },
           data: {
-            StartingIDNumber: existingTicket.StartingIDNumber,
-            EndingIDNumber: existingTicket.StartingIDNumber + Quantity - 1,
+            StartingIDNumber,
+            EndingIDNumber,
           },
         });
       }
     }
 
-    return NextResponse.json({ message: 'Update successful' });
+    // Return updated full record
+    const updatedFullRecord = await prisma.busAssignment.findUnique({
+      where: { BusAssignmentID },
+      select: {
+        BusAssignmentID: true,
+        BusID: true,
+        Battery: true,
+        Lights: true,
+        Oil: true,
+        Water: true,
+        Break: true,
+        Air: true,
+        Gas: true,
+        Engine: true,
+        TireCondition: true,
+        Self_Driver: true,
+        Self_Conductor: true,
+        IsDeleted: true,
+        Status: true,
+        RegularBusAssignment: {
+          select: {
+            Change: true,
+            TripRevenue: true,
+            quotaPolicy: {
+              select: {
+                QuotaPolicyID: true,
+                Fixed: { select: { Quota: true } },
+                Percentage: { select: { Percentage: true } },
+              },
+            },
+          },
+        },
+        TicketBusAssignments: {
+          select: {
+            TicketBusAssignmentID: true,
+            StartingIDNumber: true,
+            EndingIDNumber: true,
+            TicketType: {
+              select: { Value: true },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedFullRecord, { status: 200 });
 
   } catch (error) {
     console.error('Update error:', error);

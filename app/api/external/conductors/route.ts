@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ data: conductors }, { status: 200 });
 
   } catch (error) {
-    console.error('[GET_CONDUCTORS_ERROR]', error instanceof Error ? error.message : error);
+    console.error('GET_CONDUCTORS_ERROR', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Failed to fetch conductors' }, { status: 500 });
   }
 }

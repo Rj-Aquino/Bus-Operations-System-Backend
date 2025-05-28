@@ -19,11 +19,6 @@ export async function GET() {
             Percentage: true,
           },
         },
-        RegularBusAssignments: {
-          select: {
-            RegularBusAssignmentID: true,
-          },
-        },
       },
     });
 
@@ -39,9 +34,17 @@ export async function POST(request: Request) {
     const data = await request.json();
     const { type, value } = data;
 
-    if (!['Fixed', 'Percentage'].includes(type) || isNaN(parseFloat(value))) {
+    const normalizedType = type?.toLowerCase();
+    const numericValue = parseFloat(value);
+
+    if (
+      !['fixed', 'percentage'].includes(normalizedType) ||
+      isNaN(numericValue)
+    ) {
       return NextResponse.json(
-        { error: 'Invalid type or value. Type must be "Fixed" or "Percentage", and value must be a number.' },
+        {
+          error: 'Invalid input. Type must be "Fixed" or "Percentage", and value must be a valid number.',
+        },
         { status: 400 }
       );
     }
@@ -51,20 +54,16 @@ export async function POST(request: Request) {
     const newQuotaPolicy = await prisma.quota_Policy.create({
       data: {
         QuotaPolicyID: newQuotaPolicyID,
-        StartDate: new Date(),
-        EndDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-        ...(type === 'Fixed'
-          ? { Fixed: { create: { Quota: parseFloat(value) } } }
-          : { Percentage: { create: { Percentage: parseFloat(value) / 100 } } }),
+        ...(normalizedType === 'fixed'
+          ? { Fixed: { create: { Quota: numericValue } } }
+          : { Percentage: { create: { Percentage: numericValue / 100 } } }),
       },
       select: {
         QuotaPolicyID: true,
-        StartDate: true,
-        EndDate: true,
         Fixed: { select: { Quota: true } },
         Percentage: { select: { Percentage: true } },
         RegularBusAssignments: { select: { RegularBusAssignmentID: true } },
-      }
+      },
     });
 
     return NextResponse.json(newQuotaPolicy, { status: 201 });

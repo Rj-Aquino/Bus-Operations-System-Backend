@@ -13,7 +13,7 @@ export async function GET() {
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GET_DRIVERS_ERROR]', message);
+    console.error('GET_DRIVERS_ERROR', message);
 
     return NextResponse.json({ error: 'Failed to fetch drivers', details: message }, { status: 500 });
   }

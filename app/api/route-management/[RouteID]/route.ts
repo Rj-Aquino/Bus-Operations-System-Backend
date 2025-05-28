@@ -20,6 +20,13 @@ export async function PUT(request: NextRequest) {
     const data = await request.json();
     const { RouteName, StartStopID, EndStopID, RouteStops, IsDeleted } = data;
 
+    if (StartStopID === EndStopID) {
+      return NextResponse.json(
+        { error: 'StartStop and EndStop cannot be the same.' },
+        { status: 400 }
+      );
+    }
+
     const rawRouteStops: RouteStopInput[] = Array.isArray(RouteStops) ? RouteStops : [];
 
     const stopIdSet = new Set<string>();
@@ -37,23 +44,11 @@ export async function PUT(request: NextRequest) {
       normalizedStops.push({ StopID: stopId, StopOrder: stop.StopOrder });
     }
 
-    if (StartStopID === EndStopID) {
+    const startAndEndSet = new Set([StartStopID, EndStopID]);
+    const overlaps = Array.from(startAndEndSet).filter(id => stopIdSet.has(id));
+    if (overlaps.length > 0) {
       return NextResponse.json(
-        { error: 'StartStop and EndStop cannot be the same.' },
-        { status: 400 }
-      );
-    }
-
-    if (stopIdSet.has(StartStopID)) {
-      return NextResponse.json(
-        { error: 'StartStop should not be included in RouteStops list.' },
-        { status: 400 }
-      );
-    }
-
-    if (stopIdSet.has(EndStopID)) {
-      return NextResponse.json(
-        { error: 'EndStop should not be included in RouteStops list.' },
+        { error: 'StartStopID and EndStopID should not be included in RouteStops list.' },
         { status: 400 }
       );
     }
@@ -64,14 +59,11 @@ export async function PUT(request: NextRequest) {
         where: { RouteID },
         data: { IsDeleted: true },
       });
-
       return NextResponse.json(softDeletedRoute, { status: 200 });
     }
 
     // Fetch current route
-    const existingRoute = await prisma.route.findUnique({
-      where: { RouteID },
-    });
+    const existingRoute = await prisma.route.findUnique({ where: { RouteID } });
 
     if (!existingRoute) {
       return NextResponse.json({ error: 'Route not found.' }, { status: 404 });
@@ -90,7 +82,6 @@ export async function PUT(request: NextRequest) {
 
     // If new RouteStops are provided, replace them
     if (normalizedStops.length > 0) {
-      // Generate all RouteStopIDs before transaction
       const stopsWithIDs = await Promise.all(
         normalizedStops.map(async stop => ({
           ...stop,
@@ -146,9 +137,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { isDeleted } = body;
+    const { IsDeleted } = body;
 
-    if (typeof isDeleted !== 'boolean') {
+    if (typeof IsDeleted !== 'boolean') {
       return NextResponse.json(
         { error: 'Invalid isDeleted value. It must be a boolean.' },
         { status: 400 }
@@ -157,7 +148,7 @@ export async function PATCH(req: NextRequest) {
 
     const updatedRoute = await prisma.route.update({
       where: { RouteID },
-      data: { IsDeleted: isDeleted },
+      data: { IsDeleted: IsDeleted },
     });
 
     return NextResponse.json(updatedRoute, { status: 200 });

@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GET_DRIVER_BY_ID_ERROR]', message);
+    console.error('GET_DRIVER_BY_ID_ERROR', message);
 
     return new Response(JSON.stringify({
       error: 'Failed to fetch driver',

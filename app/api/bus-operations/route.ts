@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
 
-    // Build where clause with strict typing
     const whereClause: {
       IsDeleted: boolean;
       Status?: BusOperationStatus;
@@ -23,21 +22,54 @@ export async function GET(request: NextRequest) {
 
     const busAssignments = await prisma.busAssignment.findMany({
       where: whereClause,
-      include: {
+      select: {
+        BusAssignmentID: true,
+        BusID: true,
+        Battery: true,
+        Lights: true,
+        Oil: true,
+        Water: true,
+        Break: true,
+        Air: true,
+        Gas: true,
+        Engine: true,
+        TireCondition: true,
+        Self_Driver: true,
+        Self_Conductor: true,
+        IsDeleted: true,
+        Status: true,
         RegularBusAssignment: {
-          include: {
+          select: {
+            Change: true,
+            TripRevenue: true,
             quotaPolicy: {
               select: {
                 QuotaPolicyID: true,
-                StartDate: true,
-                EndDate: true,
+                Fixed: {
+                  select: {
+                    Quota: true,
+                  },
+                },
+                Percentage: {
+                  select: {
+                    Percentage: true,
+                  },
+                },
               },
             },
           },
         },
         TicketBusAssignments: {
-          include: {
-            TicketType: true,
+          select: {
+            TicketBusAssignmentID: true,
+            StartingIDNumber: true,
+            EndingIDNumber: true,
+            TicketType: {
+              select: {
+                TicketTypeID: true,
+                Value: true,
+              },
+            },
           },
         },
       },
