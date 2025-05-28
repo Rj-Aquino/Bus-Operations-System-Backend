@@ -1,3 +1,4 @@
+/* eslint-disable import/no-anonymous-default-export */
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
@@ -15,7 +16,6 @@ export default [
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 
-  // ⬇️ Put custom overrides after the presets
   {
     files: ["**/*.ts"],
     rules: {

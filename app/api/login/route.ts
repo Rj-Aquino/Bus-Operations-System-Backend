@@ -1,20 +1,19 @@
+import { NextResponse } from 'next/server';
+import { withCors } from '@/lib/withcors';
 import { signToken } from '@/lib/jwt';
 import { ROLES } from '@/lib/roles';
 
-export async function POST(request: Request) {
+const postHandler = async (request: Request) => {
   const body = await request.json();
   const { role } = body;
 
   if (!role) {
-    return new Response(JSON.stringify({ message: 'Role is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ message: 'Role is required' }, { status: 400 });
   }
 
-    if (!Object.values(ROLES).includes(role)) {
-    return new Response(JSON.stringify({ message: 'Invalid role' }), { status: 400 });
-    }
+  if (!Object.values(ROLES).includes(role)) {
+    return NextResponse.json({ message: 'Invalid role' }, { status: 400 });
+  }
 
   const token = signToken(
     {
@@ -26,8 +25,9 @@ export async function POST(request: Request) {
     '1h'
   );
 
-  return new Response(JSON.stringify({ token }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+  return NextResponse.json({ token }, { status: 200 });
+};
+
+export const POST = withCors(postHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
+
