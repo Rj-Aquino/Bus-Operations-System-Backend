@@ -19,7 +19,8 @@ export default [
   {
     files: ["**/*.ts"],
     rules: {
-      "@typescript-eslint/no-unused-vars": "off", // or use warn with patterns
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ];
