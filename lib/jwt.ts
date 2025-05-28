@@ -6,7 +6,7 @@ if (!JWT_SECRET) {
   throw new Error("JWT_SECRET is not defined in environment variables");
 }
 
-export const signToken = (payload: object, expiresIn: SignOptions['expiresIn'] = '1h') => {
+export const signToken = (payload: object, expiresIn: SignOptions['expiresIn'] = '24h') => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
