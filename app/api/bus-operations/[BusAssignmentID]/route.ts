@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
+import { authenticateRequest } from '@/lib/auth';
 
 enum BusOperationStatus {
   NotStarted = 'NotStarted',
@@ -28,6 +29,13 @@ type RegularBusAssignmentUpdateData = Partial<{
 }>;
 
 export async function PUT(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const url = new URL(request.url);
   const BusAssignmentID = url.pathname.split('/').pop();
 

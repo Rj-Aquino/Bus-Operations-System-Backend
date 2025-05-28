@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
 import { generateFormattedID } from '@/lib/idGenerator';
 import { createQuotaPolicy } from '@/lib/quotaPolicy';
+import { authenticateRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const assignments = await prisma.regularBusAssignment.findMany({
       where: {
@@ -43,7 +52,7 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(assignments);
+    return NextResponse.json(assignments, { status: 200 });
   } catch (error) {
     console.error('REGULAR_ASSIGNMENTS_ERROR', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
@@ -51,6 +60,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const data = await request.json();
 

@@ -1,7 +1,15 @@
 import { fetchConductors } from '@/lib/fetchConductors';
 import { NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const conductors = await fetchConductors();
 

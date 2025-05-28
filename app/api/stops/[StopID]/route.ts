@@ -1,7 +1,15 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
+import { authenticateRequest } from '@/lib/auth';
 
 export async function PUT(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const url = new URL(request.url);
     const StopID = url.pathname.split('/').pop();
@@ -51,6 +59,13 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const { user, error, status } = await authenticateRequest(req);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const url = new URL(req.url);
     const StopID = url.pathname.split('/').pop();

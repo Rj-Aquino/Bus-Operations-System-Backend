@@ -1,8 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
-import { generateFormattedID } from '../../../lib/idGenerator';
+import { generateFormattedID } from '@/lib/idGenerator';
+import { authenticateRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const assignments = await prisma.quota_Policy.findMany({
       select: {
@@ -30,6 +38,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const data = await request.json();
     const { type, value } = data;

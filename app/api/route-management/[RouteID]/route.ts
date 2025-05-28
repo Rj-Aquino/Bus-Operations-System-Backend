@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client'; // Adjust the import path based on your setup
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { generateFormattedID } from '../../../../lib/idGenerator';
+import { generateFormattedID } from '@/lib/idGenerator';
+import { authenticateRequest } from '@/lib/auth';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
@@ -9,6 +10,13 @@ type RouteStopInput = {
 };
 
 export async function PUT(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const url = new URL(request.url);
     const RouteID = url.pathname.split('/').pop();
@@ -125,6 +133,13 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const { user, error, status } = await authenticateRequest(req);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const url = new URL(req.url);
     const RouteID = url.pathname.split('/').pop();

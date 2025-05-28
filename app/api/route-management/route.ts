@@ -1,9 +1,17 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { generateFormattedID } from '../../../lib/idGenerator';
+import { generateFormattedID } from '@/lib/idGenerator';
+import { authenticateRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const routes = await prisma.route.findMany({
       where: {
@@ -28,6 +36,13 @@ type RouteStopInput = {
 };
 
 export async function POST(req: Request) {
+  const { user, error, status } = await authenticateRequest(req);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const data = await req.json();
 

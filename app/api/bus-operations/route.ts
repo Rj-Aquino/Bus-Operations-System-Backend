@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { BusOperationStatus } from '@prisma/client';
+import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');

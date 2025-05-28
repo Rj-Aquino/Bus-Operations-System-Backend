@@ -1,7 +1,15 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import { authenticateRequest } from '@/lib/auth';
 
 export async function PUT(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const url = new URL(request.url);
     const QuotaPolicyID = url.pathname.split('/').pop();

@@ -1,8 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
-import { generateFormattedID } from '../../../lib/idGenerator';
+import { generateFormattedID } from '@/lib/idGenerator';
+import { authenticateRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { user, error, status } = await authenticateRequest(request);
+    if (error) {
+      return new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   try {
     const stops = await prisma.stop.findMany({
       where: {
@@ -24,6 +32,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const { user, error, status } = await authenticateRequest(req);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const body = await req.json();
     const { StopName, latitude, longitude } = body;

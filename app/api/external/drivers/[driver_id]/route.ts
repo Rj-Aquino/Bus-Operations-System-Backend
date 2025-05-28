@@ -1,6 +1,14 @@
 import { fetchDriverById } from '@/lib/fetchDrivers';
+import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(request: Request) {
+const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const url = new URL(request.url);
     const driverId = decodeURIComponent(url.pathname.split('/').at(-1) || '').trim();
