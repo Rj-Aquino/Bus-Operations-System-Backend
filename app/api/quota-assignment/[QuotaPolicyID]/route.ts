@@ -1,21 +1,19 @@
 import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function PUT(request: NextRequest) {
+const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const url = new URL(request.url);
     const QuotaPolicyID = url.pathname.split('/').pop();
     const { type, value } = await request.json();
 
-    // Validate input
     if (!QuotaPolicyID) {
       return NextResponse.json({ error: 'QuotaPolicyID is required in the URL path.' }, { status: 400 });
     }
@@ -23,16 +21,12 @@ export async function PUT(request: NextRequest) {
     const numericValue = parseFloat(value);
     const normalizedType = type?.toLowerCase();
 
-    if (
-      !['fixed', 'percentage'].includes(normalizedType) ||
-      isNaN(numericValue)
-    ) {
+    if (!['fixed', 'percentage'].includes(normalizedType) || isNaN(numericValue)) {
       return NextResponse.json({
         error: 'Invalid type or value. Type must be "Fixed" or "Percentage", and value must be a number.',
       }, { status: 400 });
     }
 
-    // Ensure policy exists
     const exists = await prisma.quota_Policy.findUnique({
       where: { QuotaPolicyID },
       select: { QuotaPolicyID: true },
@@ -42,7 +36,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Quota policy not found.' }, { status: 404 });
     }
 
-    // Transaction
     const updatedQuotaPolicy = await prisma.$transaction(async (tx) => {
       if (normalizedType === 'fixed') {
         await tx.percentage.deleteMany({ where: { PQuotaPolicyID: QuotaPolicyID } });
@@ -79,4 +72,7 @@ export async function PUT(request: NextRequest) {
     console.error('PUT /quota-policy error:', error);
     return NextResponse.json({ error: 'Failed to update quota policy' }, { status: 500 });
   }
-}
+};
+
+export const PUT = withCors(putHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

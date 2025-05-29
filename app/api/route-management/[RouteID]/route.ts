@@ -1,22 +1,20 @@
 import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/client'; // Adjust the import path based on your setup
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
   StopOrder: number;
 };
 
-export async function PUT(request: NextRequest) {
+const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const url = new URL(request.url);
     const RouteID = url.pathname.split('/').pop();
@@ -61,7 +59,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Soft delete shortcut
     if (IsDeleted === true) {
       const softDeletedRoute = await prisma.route.update({
         where: { RouteID },
@@ -70,14 +67,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(softDeletedRoute, { status: 200 });
     }
 
-    // Fetch current route
     const existingRoute = await prisma.route.findUnique({ where: { RouteID } });
 
     if (!existingRoute) {
       return NextResponse.json({ error: 'Route not found.' }, { status: 404 });
     }
 
-    // Update route
     const updatedRoute = await prisma.route.update({
       where: { RouteID },
       data: {
@@ -88,7 +83,6 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // If new RouteStops are provided, replace them
     if (normalizedStops.length > 0) {
       const stopsWithIDs = await Promise.all(
         normalizedStops.map(async stop => ({
@@ -114,10 +108,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(updatedRoute, { status: 200 });
 
-  } catch (error: unknown) {
+  } catch (error: any) {
     if (
-      error instanceof PrismaClientKnownRequestError &&
-      error.code === 'P2002' &&
+      error?.code === 'P2002' &&
       Array.isArray(error.meta?.target) &&
       error.meta.target.includes('RouteID') &&
       error.meta.target.includes('StopID')
@@ -130,16 +123,14 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ error: 'Failed to update route' }, { status: 500 });
   }
-}
+};
 
-export async function PATCH(req: NextRequest) {
+const patchHandler = async (req: NextRequest) => {
   const { user, error, status } = await authenticateRequest(req);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const url = new URL(req.url);
     const RouteID = url.pathname.split('/').pop();
@@ -172,4 +163,8 @@ export async function PATCH(req: NextRequest) {
     console.error('PATCH /route error:', error);
     return NextResponse.json({ error: 'Failed to update route' }, { status: 500 });
   }
-}
+};
+
+export const PUT = withCors(putHandler);
+export const PATCH = withCors(patchHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { withCors } from '@/lib/withcors';
 import { signToken } from '@/lib/jwt';
 import { ROLES } from '@/lib/roles';
 
-const postHandler = async (request: Request) => {
+const postHandler = async (request: NextRequest) => {
   const body = await request.json();
   const { role } = body;
 
@@ -30,4 +30,3 @@ const postHandler = async (request: Request) => {
 
 export const POST = withCors(postHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
-

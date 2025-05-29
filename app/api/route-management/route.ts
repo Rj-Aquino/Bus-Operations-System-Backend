@@ -1,17 +1,15 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const routes = await prisma.route.findMany({
       where: {
@@ -28,24 +26,21 @@ export async function GET(request: NextRequest) {
     console.error('Failed to fetch route summary:', error);
     return NextResponse.json({ error: 'Failed to fetch routes' }, { status: 500 });
   }
-}
+};
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
   StopOrder: number;
 };
 
-export async function POST(req: Request) {
-  const { user, error, status } = await authenticateRequest(req);
+const postHandler = async (request: NextRequest) => {
+  const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
-  try {
-    const data = await req.json();
 
+  try {
+    const data = await request.json();
     const rawRouteStops: RouteStopInput[] = Array.isArray(data.RouteStops) ? data.RouteStops : [];
 
     if (data.StartStopID === data.EndStopID) {
@@ -96,11 +91,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newRoute, { status: 201 });
 
-  } catch (error: unknown) {
-    if (
-      error instanceof PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
       return NextResponse.json(
         { error: 'Duplicate stops are not allowed in a route.' },
         { status: 400 }
@@ -109,4 +101,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Failed to create route' }, { status: 500 });
   }
-}
+};
+
+export const GET = withCors(getHandler);
+export const POST = withCors(postHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

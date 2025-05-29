@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { createQuotaPolicy } from '@/lib/quotaPolicy';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function GET(request: Request) {
+const gethandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
 
   try {
@@ -28,14 +26,10 @@ export async function GET(request: Request) {
           select: {
             QuotaPolicyID: true,
             Fixed: {
-              select: {
-                Quota: true,
-              },
+              select: { Quota: true },
             },
             Percentage: {
-              select: {
-                Percentage: true,
-              },
+              select: { Percentage: true },
             },
           },
         },
@@ -57,15 +51,12 @@ export async function GET(request: Request) {
     console.error('REGULAR_ASSIGNMENTS_ERROR', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
-}
+};
 
-export async function POST(request: Request) {
+const postHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
 
   try {
@@ -87,13 +78,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // === Create IDs & Related Entities in Parallel ===
     const [busAssignmentID, quotaPolicy] = await Promise.all([
       generateFormattedID('BA'),
       createQuotaPolicy({ type: data.QuotaPolicy.type, value: data.QuotaPolicy.value }),
     ]);
 
-    // === Create BusAssignment in Transaction ===
     const assignment = await prisma.busAssignment.create({
       data: {
         BusAssignmentID: busAssignmentID,
@@ -134,4 +123,8 @@ export async function POST(request: Request) {
     console.error('CREATE_ASSIGNMENT_ERROR:', error);
     return NextResponse.json({ error: 'Failed to create BusAssignment' }, { status: 500 });
   }
-}
+};
+
+export const GET = withCors(gethandler);
+export const POST = withCors(postHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

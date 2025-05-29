@@ -2,15 +2,14 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const stops = await prisma.stop.findMany({
       where: {
@@ -29,29 +28,29 @@ export async function GET(request: NextRequest) {
     console.error('Failed to fetch stops:', error);
     return NextResponse.json({ error: 'Failed to fetch stops' }, { status: 500 });
   }
-}
+};
 
-export async function POST(req: Request) {
+const postHandler = async (req: NextRequest) => {
   const { user, error, status } = await authenticateRequest(req);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const body = await req.json();
     const { StopName, latitude, longitude } = body;
 
-    // Input validation
-    if (typeof StopName !== 'string' || typeof latitude !== 'string' || typeof longitude !== 'string') {
+    if (
+      typeof StopName !== 'string' ||
+      typeof latitude !== 'string' ||
+      typeof longitude !== 'string'
+    ) {
       return NextResponse.json(
         { error: 'Invalid input. All fields must be non-empty strings.' },
         { status: 400 }
       );
     }
 
-    // Generate unique StopID
     const StopID = await generateFormattedID('STP');
 
     const newStop = await prisma.stop.create({
@@ -59,7 +58,7 @@ export async function POST(req: Request) {
         StopID,
         StopName,
         latitude,
-        longitude
+        longitude,
       },
       select: {
         StopID: true,
@@ -74,4 +73,8 @@ export async function POST(req: Request) {
     console.error('Failed to create stop:', error);
     return NextResponse.json({ error: 'Failed to create stop' }, { status: 500 });
   }
-}
+};
+
+export const GET = withCors(getHandler);
+export const POST = withCors(postHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

@@ -1,16 +1,15 @@
 import { NextResponse, NextRequest } from 'next/server';
-import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const assignments = await prisma.quota_Policy.findMany({
       select: {
@@ -35,16 +34,14 @@ export async function GET(request: NextRequest) {
     console.error('GET /quota-policy error:', error);
     return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
-}
+};
 
-export async function POST(request: Request) {
+const postHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const data = await request.json();
     const { type, value } = data;
@@ -82,9 +79,12 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newQuotaPolicy, { status: 201 });
-
   } catch (error) {
     console.error('POST /quota-policy error:', error);
     return NextResponse.json({ error: 'Failed to create quota policy' }, { status: 500 });
   }
-}
+};
+
+export const GET = withCors(getHandler);
+export const POST = withCors(postHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

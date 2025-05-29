@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/client'; // Importing the Prisma client instance to interact with the database
+import prisma from '@/client';
 import { updateQuotaPolicy } from '@/lib/quotaPolicy';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function PUT(request: Request) {
+const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const url = new URL(request.url);
     const BusAssignmentID = url.pathname.split('/').pop();
@@ -21,13 +20,11 @@ export async function PUT(request: Request) {
 
     const data = await request.json();
 
-    // === Validate Driver and Conductor are not the same ===
     const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id?.split('-')[1]);
     if (driverSuffix === conductorSuffix) {
       return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // === Fetch existing RegularBusAssignment and QuotaPolicyID ===
     const existing = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
@@ -46,7 +43,6 @@ export async function PUT(request: Request) {
 
     const QuotaPolicyID = existing.RegularBusAssignment.quotaPolicy?.QuotaPolicyID;
 
-    // === Update QuotaPolicy directly (if type & value are provided) ===
     if (QuotaPolicyID && data.type && data.value != null) {
       await updateQuotaPolicy(QuotaPolicyID, {
         type: data.type,
@@ -56,7 +52,6 @@ export async function PUT(request: Request) {
       });
     }
 
-    // === Update BusAssignment and RegularBusAssignment ===
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
       data: {
@@ -91,30 +86,27 @@ export async function PUT(request: Request) {
     });
 
     return NextResponse.json(updated, { status: 200 });
-
   } catch (error) {
     console.error('UPDATE_ASSIGNMENT_ERROR', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
-}
+};
 
-export async function PATCH(req: Request) {
-  const { user, error, status } = await authenticateRequest(req);
+const patchHandler = async (request: NextRequest) => {
+  const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
-    const url = new URL(req.url);
+    const url = new URL(request.url);
     const BusAssignmentID = url.pathname.split('/').pop();
 
     if (!BusAssignmentID) {
       return NextResponse.json({ error: 'BusAssignmentID is required' }, { status: 400 });
     }
 
-    const body = await req.json();
+    const body = await request.json();
     const { IsDeleted } = body;
 
     if (typeof IsDeleted !== 'boolean') {
@@ -130,9 +122,12 @@ export async function PATCH(req: Request) {
     });
 
     return NextResponse.json(updated, { status: 200 });
-
   } catch (error) {
     console.error('PATCH_ASSIGNMENT_ERROR', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
-}
+};
+
+export const PUT = withCors(putHandler);
+export const PATCH = withCors(patchHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

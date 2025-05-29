@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { BusOperationStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -88,4 +87,7 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching bus assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch bus assignments' }, { status: 500 });
   }
-}
+};
+
+export const GET = withCors(getHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

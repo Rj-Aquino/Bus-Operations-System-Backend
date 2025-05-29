@@ -1,15 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
-export async function PUT(request: Request) {
+const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
   try {
     const url = new URL(request.url);
     const StopID = url.pathname.split('/').pop();
@@ -18,9 +17,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'StopID is required in the URL.' }, { status: 400 });
     }
 
-    const { StopName, latitude, longitude} = await request.json();
+    const { StopName, latitude, longitude } = await request.json();
 
-    // Check if stop exists
     const existingStop = await prisma.stop.findUnique({
       where: { StopID },
       select: { StopID: true },
@@ -30,7 +28,6 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Stop not found.' }, { status: 404 });
     }
 
-    // Prepare update data dynamically
     const updateData: Record<string, any> = {};
     if (typeof StopName === 'string') updateData.StopName = StopName;
     if (typeof latitude === 'string') updateData.latitude = latitude;
@@ -47,7 +44,7 @@ export async function PUT(request: Request) {
         StopID: true,
         StopName: true,
         latitude: true,
-        longitude: true
+        longitude: true,
       },
     });
 
@@ -56,16 +53,14 @@ export async function PUT(request: Request) {
     console.error('Failed to update stop:', error);
     return NextResponse.json({ error: 'Failed to update stop' }, { status: 500 });
   }
-}
+};
 
-export async function PATCH(req: NextRequest) {
+const patchHandler = async (req: NextRequest) => {
   const { user, error, status } = await authenticateRequest(req);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   try {
     const url = new URL(req.url);
     const StopID = url.pathname.split('/').pop();
@@ -91,7 +86,7 @@ export async function PATCH(req: NextRequest) {
 
     const updatedStop = await prisma.stop.update({
       where: { StopID },
-      data: { IsDeleted: IsDeleted },
+      data: { IsDeleted },
       select: {
         IsDeleted: true,
       },
@@ -102,4 +97,8 @@ export async function PATCH(req: NextRequest) {
     console.error('Error in PATCH /stop:', error);
     return NextResponse.json({ error: 'Failed to update stop.' }, { status: 500 });
   }
-}
+};
+
+export const PUT = withCors(putHandler);
+export const PATCH = withCors(patchHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));

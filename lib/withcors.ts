@@ -1,5 +1,3 @@
-// lib/withCors.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const allowedOrigins = [
@@ -7,40 +5,27 @@ const allowedOrigins = [
   'http://192.168.254.106:3000',
 ];
 
-function createCorsHeaders(origin: string | null): HeadersInit {
-  const headers: HeadersInit = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Content-Type': 'application/json',
-  };
-
-  if (origin && allowedOrigins.includes(origin)) {
-    headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Credentials'] = 'true';
-  }
-
-  return headers;
-}
-
 export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {
-  return async (req: NextRequest) => {
-    const origin = req.headers.get('origin');
-    const corsHeaders = createCorsHeaders(origin);
+  return async (request: NextRequest) => {
+    const origin = request.headers.get('origin');
+    const headers = new Headers({
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Content-Type': 'application/json',
+    });
 
-    // Handle OPTIONS (preflight)
-    if (req.method === 'OPTIONS') {
-      return new NextResponse(null, {
-        status: 204,
-        headers: corsHeaders,
-      });
+    if (origin && allowedOrigins.includes(origin)) {
+      headers.set('Access-Control-Allow-Origin', origin);
+      headers.set('Access-Control-Allow-Credentials', 'true');
     }
 
-    // Handle normal request
-    const response = await handler(req);
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204, headers });
+    }
 
-    // Merge CORS headers into the response
-    Object.entries(corsHeaders).forEach(([key, value]) => {
-      response.headers.set(key, value as string);
+    const response = await handler(request);
+    headers.forEach((value, key) => {
+      response.headers.set(key, value);
     });
 
     return response;

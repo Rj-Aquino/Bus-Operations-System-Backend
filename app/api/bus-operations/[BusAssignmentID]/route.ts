@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
+import { withCors } from '@/lib/withcors';
 
 enum BusOperationStatus {
   NotStarted = 'NotStarted',
@@ -28,14 +29,12 @@ type RegularBusAssignmentUpdateData = Partial<{
   TripRevenue: number;
 }>;
 
-export async function PUT(request: Request) {
+const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
-    return new Response(JSON.stringify({ error }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ error }, { status });
   }
+
   const url = new URL(request.url);
   const BusAssignmentID = url.pathname.split('/').pop();
 
@@ -50,7 +49,6 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
     }
 
-    // Prepare BusAssignment fields
     const busAssignmentFields: BusAssignmentUpdateData = {};
     const booleanFields: (keyof BusAssignmentUpdateData)[] = [
       'Battery', 'Lights', 'Oil', 'Water', 'Break',
@@ -72,7 +70,6 @@ export async function PUT(request: Request) {
       include: { RegularBusAssignment: true },
     });
 
-    // Update RegularBusAssignment
     const regularUpdateFields: RegularBusAssignmentUpdateData = {};
     if ('Change' in body) regularUpdateFields.Change = Number(body.Change);
     if ('TripRevenue' in body) regularUpdateFields.TripRevenue = Number(body.TripRevenue);
@@ -92,7 +89,6 @@ export async function PUT(request: Request) {
       }, { status: 400 });
     }
 
-    // Update TicketBusAssignments scoped by BusAssignmentID and TicketTypeID
     if (Array.isArray(body.TicketBusAssignments)) {
       for (const ticket of body.TicketBusAssignments) {
         const { TicketTypeID, StartingIDNumber, EndingIDNumber } = ticket;
@@ -135,7 +131,6 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Return updated full record
     const updatedFullRecord = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
@@ -186,4 +181,7 @@ export async function PUT(request: Request) {
     console.error('Update error:', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
-}
+};
+
+export const PUT = withCors(putHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
