@@ -24,7 +24,7 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const data = await request.json();
-    const { RouteName, StartStopID, EndStopID, RouteStops, IsDeleted } = data;
+    const { RouteName, StartStopID, EndStopID, RouteStops} = data;
 
     if (StartStopID === EndStopID) {
       return NextResponse.json(
@@ -54,17 +54,9 @@ const putHandler = async (request: NextRequest) => {
     const overlaps = Array.from(startAndEndSet).filter(id => stopIdSet.has(id));
     if (overlaps.length > 0) {
       return NextResponse.json(
-        { error: 'StartStopID and EndStopID should not be included in RouteStops list.' },
+        { error: 'StartStop and EndStop should not be included in RouteStops list.' },
         { status: 400 }
       );
-    }
-
-    if (IsDeleted === true) {
-      const softDeletedRoute = await prisma.route.update({
-        where: { RouteID },
-        data: { IsDeleted: true },
-      });
-      return NextResponse.json(softDeletedRoute, { status: 200 });
     }
 
     const existingRoute = await prisma.route.findUnique({ where: { RouteID } });
@@ -79,7 +71,6 @@ const putHandler = async (request: NextRequest) => {
         RouteName: RouteName ?? existingRoute.RouteName,
         StartStopID: StartStopID ?? existingRoute.StartStopID,
         EndStopID: EndStopID ?? existingRoute.EndStopID,
-        IsDeleted: existingRoute.IsDeleted,
       },
     });
 
