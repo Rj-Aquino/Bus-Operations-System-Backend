@@ -18,6 +18,18 @@ const getHandler = async (request: NextRequest) => {
       select: {
         RouteID: true,
         RouteName: true,
+        StartStop: {
+          select: {
+            StopID: true,
+            StopName: true,
+          },
+        },
+        EndStop: {
+          select: {
+            StopID: true,
+            StopName: true,
+          },
+        },
       },
     });
 
