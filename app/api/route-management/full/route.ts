@@ -34,6 +34,7 @@ const getHandler = async (request: NextRequest) => {
             StopOrder: true,
             Stop: {
               select: {
+                StopID: true,
                 StopName: true,
               },
             },
