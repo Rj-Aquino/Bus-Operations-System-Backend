@@ -66,7 +66,7 @@ const postHandler = async (request: NextRequest) => {
     const newQuotaPolicy = await prisma.quota_Policy.create({
       data: {
         QuotaPolicyID: newQuotaPolicyID,
-        ...(normalizedType === 'fixed'
+        ...(normalizedType === 'Fixed'
           ? { Fixed: { create: { Quota: numericValue } } }
           : { Percentage: { create: { Percentage: numericValue / 100 } } }),
       },
