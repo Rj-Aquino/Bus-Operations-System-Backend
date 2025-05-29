@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const allowedOrigins = [
   'https://bus-operations-system.vercel.app',
   'http://192.168.254.106:3000',
+  'https://bus-operations-system-lemon.vercel.app',
 ];
 
 export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {
