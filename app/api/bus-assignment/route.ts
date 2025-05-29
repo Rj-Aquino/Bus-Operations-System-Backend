@@ -35,6 +35,7 @@ const gethandler = async (request: NextRequest) => {
         },
         BusAssignment: {
           select: {
+            BusID: true,
             Route: {
               select: {
                 RouteID: true,
