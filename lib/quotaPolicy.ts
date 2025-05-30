@@ -19,7 +19,15 @@ function validateQuotaPolicy(type: string, value: number) {
   }
 }
 
-export async function createQuotaPolicy({ type, value }: { type: string; value: number }) {
+export async function createQuotaPolicy({
+  type,
+  value,
+  RegularBusAssignmentID,
+}: {
+  type: string;
+  value: number;
+  RegularBusAssignmentID: string;
+}) {
   validateQuotaPolicy(type, value);
   const QuotaPolicyID = await generateFormattedID('QP');
   const normalizedType = type.toUpperCase();
@@ -27,6 +35,7 @@ export async function createQuotaPolicy({ type, value }: { type: string; value: 
   return prisma.quota_Policy.create({
     data: {
       QuotaPolicyID,
+      RegularBusAssignmentID,
       ...(normalizedType === 'FIXED'
         ? { Fixed: { create: { Quota: value } } }
         : { Percentage: { create: { Percentage: value } } }),
