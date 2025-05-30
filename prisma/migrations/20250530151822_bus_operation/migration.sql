@@ -6,6 +6,7 @@ CREATE TABLE "Quota_Policy" (
     "QuotaPolicyID" TEXT NOT NULL,
     "StartDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "EndDate" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + interval '1 year'),
+    "RegularBusAssignmentID" TEXT NOT NULL,
 
     CONSTRAINT "Quota_Policy_pkey" PRIMARY KEY ("QuotaPolicyID")
 );
@@ -105,7 +106,6 @@ CREATE TABLE "RegularBusAssignment" (
     "RegularBusAssignmentID" TEXT NOT NULL,
     "DriverID" TEXT NOT NULL,
     "ConductorID" TEXT NOT NULL,
-    "QuotaPolicyID" TEXT NOT NULL,
     "Change" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "TripRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
 
@@ -123,6 +123,9 @@ CREATE INDEX "RegularBusAssignment_DriverID_idx" ON "RegularBusAssignment"("Driv
 
 -- CreateIndex
 CREATE INDEX "RegularBusAssignment_ConductorID_idx" ON "RegularBusAssignment"("ConductorID");
+
+-- AddForeignKey
+ALTER TABLE "Quota_Policy" ADD CONSTRAINT "Quota_Policy_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Fixed" ADD CONSTRAINT "Fixed_FQuotaPolicyID_fkey" FOREIGN KEY ("FQuotaPolicyID") REFERENCES "Quota_Policy"("QuotaPolicyID") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -150,9 +153,6 @@ ALTER TABLE "TicketBusAssignment" ADD CONSTRAINT "TicketBusAssignment_TicketType
 
 -- AddForeignKey
 ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN KEY ("RouteID") REFERENCES "Route"("RouteID") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_QuotaPolicyID_fkey" FOREIGN KEY ("QuotaPolicyID") REFERENCES "Quota_Policy"("QuotaPolicyID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;

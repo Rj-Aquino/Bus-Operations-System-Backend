@@ -56,26 +56,61 @@ const stopData2 = [
   { StopName: "PITX Arrivals/Transfers", latitude: "14.826", longitude: "121.052" },
 ];
 
+// async function seedQuotaPolicy() {
+//   const quotaPolicyData = [
+//     {
+//       StartDate: new Date('2025-01-04T08:00:00'), // 8:00 AM
+//       EndDate: new Date('2025-01-04T18:00:00'),   // 6:00 PM
+//     },
+//     {
+//       StartDate: new Date('2025-07-04T09:00:00'), // 9:00 AM
+//       EndDate: new Date('2025-07-04T17:00:00'),   // 5:00 PM
+//     },
+//   ];
+
+//   // Generate formatted IDs and seed data
+//   for (let i = 0; i < quotaPolicyData.length; i++) {
+//     const quotaPolicyID = await generateFormattedID('QP')
+//     await prisma.quota_Policy.create({
+//       data: {
+//         QuotaPolicyID: quotaPolicyID,
+//         StartDate: quotaPolicyData[i].StartDate,
+//         EndDate: quotaPolicyData[i].EndDate,
+//       }
+//     });
+//   }
+
+//   console.log('Quota_Policy seeded');
+// }
+
 async function seedQuotaPolicy() {
+  const regularAssignments = await prisma.regularBusAssignment.findMany({ take: 2 });
+
+  if (regularAssignments.length < 2) {
+    throw new Error('Not enough RegularBusAssignments to create QuotaPolicies.');
+  }
+
   const quotaPolicyData = [
     {
-      StartDate: new Date('2025-01-04T08:00:00'), // 8:00 AM
-      EndDate: new Date('2025-01-04T18:00:00'),   // 6:00 PM
+      StartDate: new Date('2025-01-04T08:00:00'),
+      EndDate: new Date('2025-01-04T18:00:00'),
+      RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
     },
     {
-      StartDate: new Date('2025-07-04T09:00:00'), // 9:00 AM
-      EndDate: new Date('2025-07-04T17:00:00'),   // 5:00 PM
+      StartDate: new Date('2025-07-04T09:00:00'),
+      EndDate: new Date('2025-07-04T17:00:00'),
+      RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
     },
   ];
 
-  // Generate formatted IDs and seed data
   for (let i = 0; i < quotaPolicyData.length; i++) {
-    const quotaPolicyID = await generateFormattedID('QP')
+    const quotaPolicyID = await generateFormattedID('QP');
     await prisma.quota_Policy.create({
       data: {
         QuotaPolicyID: quotaPolicyID,
         StartDate: quotaPolicyData[i].StartDate,
         EndDate: quotaPolicyData[i].EndDate,
+        RegularBusAssignmentID: quotaPolicyData[i].RegularBusAssignmentID,
       }
     });
   }
@@ -352,36 +387,65 @@ async function seedTicketBusAssignments() {
   console.log('TicketBusAssignment seeded');
 }
 
+// async function seedRegularBusAssignments() {
+
+//   const [busAssignments, quotaPolicies] = await Promise.all([
+//     prisma.busAssignment.findMany({
+//       take: 2, 
+//     }),
+//     prisma.quota_Policy.findMany({
+//       take: 2,
+//     }),
+//   ]);
+
+//   if (busAssignments.length < 2 || quotaPolicies.length < 2) {
+//     throw new Error('Not enough BusAssignments or QuotaPolicies to create RegularBusAssignments.');
+//   }
+
+//   await prisma.regularBusAssignment.createMany({
+//     data: [
+//       {
+//         RegularBusAssignmentID: busAssignments[0].BusAssignmentID,  // Foreign key from BusAssignments
+//         DriverID: "DRV-0001",             // Assuming DriverID is from API
+//         ConductorID: "CDT-0002",          // Assuming ConductorID is from API
+//         QuotaPolicyID: quotaPolicies[0].QuotaPolicyID,          
+//         Change: 0.05,
+//         TripRevenue: 1200.50,
+//       },
+//       {
+//         RegularBusAssignmentID: busAssignments[1].BusAssignmentID,  // Foreign key from BusAssignments
+//         DriverID: "DRV-0002",             // Assuming DriverID is from API
+//         ConductorID: "CDT-0001",          // Assuming ConductorID is from API
+//         QuotaPolicyID: quotaPolicies[1].QuotaPolicyID,          
+//         Change: 0.07,
+//         TripRevenue: 1300.75,
+//       },
+//     ],
+//   });
+
+//   console.log('Regular bus assignments seeded');
+// }
+
 async function seedRegularBusAssignments() {
+  const busAssignments = await prisma.busAssignment.findMany({ take: 2 });
 
-  const [busAssignments, quotaPolicies] = await Promise.all([
-    prisma.busAssignment.findMany({
-      take: 2, 
-    }),
-    prisma.quota_Policy.findMany({
-      take: 2,
-    }),
-  ]);
-
-  if (busAssignments.length < 2 || quotaPolicies.length < 2) {
-    throw new Error('Not enough BusAssignments or QuotaPolicies to create RegularBusAssignments.');
+  if (busAssignments.length < 2) {
+    throw new Error('Not enough BusAssignments to create RegularBusAssignments.');
   }
 
   await prisma.regularBusAssignment.createMany({
     data: [
       {
-        RegularBusAssignmentID: busAssignments[0].BusAssignmentID,  // Foreign key from BusAssignments
-        DriverID: "DRV-0001",             // Assuming DriverID is from API
-        ConductorID: "CDT-0001",          // Assuming ConductorID is from API
-        QuotaPolicyID: quotaPolicies[0].QuotaPolicyID,          
+        RegularBusAssignmentID: busAssignments[0].BusAssignmentID,
+        DriverID: "DRV-0001",
+        ConductorID: "CDT-0002",
         Change: 0.05,
         TripRevenue: 1200.50,
       },
       {
-        RegularBusAssignmentID: busAssignments[1].BusAssignmentID,  // Foreign key from BusAssignments
-        DriverID: "DRV-0002",             // Assuming DriverID is from API
-        ConductorID: "CDT-0001",          // Assuming ConductorID is from API
-        QuotaPolicyID: quotaPolicies[1].QuotaPolicyID,          
+        RegularBusAssignmentID: busAssignments[1].BusAssignmentID,
+        DriverID: "DRV-0002",
+        ConductorID: "CDT-0001",
         Change: 0.07,
         TripRevenue: 1300.75,
       },
@@ -392,9 +456,9 @@ async function seedRegularBusAssignments() {
 }
 
 async function main() {
-  await seedQuotaPolicy();
-  await seedFixed();
-  await seedPercentage();
+  // await seedQuotaPolicy();
+  // await seedFixed();
+  // await seedPercentage();
   await seedStops();
   await seedRoutes();
   await seedRouteStops();
@@ -402,6 +466,9 @@ async function main() {
   await seedBusAssignments();
   await seedTicketBusAssignments();
   await seedRegularBusAssignments();
+  await seedQuotaPolicy();
+  await seedFixed();
+  await seedPercentage();
 }
 
 main()

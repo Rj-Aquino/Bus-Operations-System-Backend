@@ -11,10 +11,12 @@ model Quota_Policy {
   QuotaPolicyID String @id
   StartDate     DateTime @default(now())
   EndDate       DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + interval '1 year')"))
-  
+  RegularBusAssignmentID    String // FK to RegularBusAssignment
+
   Fixed Fixed?
   Percentage Percentage?
-  RegularBusAssignments RegularBusAssignment[]
+
+  regularBusAssignment     RegularBusAssignment? @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
 }
 
 model Fixed {
@@ -123,11 +125,11 @@ model RegularBusAssignment {
   RegularBusAssignmentID String @id
   DriverID               String 
   ConductorID            String 
-  QuotaPolicyID          String 
   Change                 Float  @default(0)
   TripRevenue            Float  @default(0)
-  quotaPolicy            Quota_Policy         @relation(fields: [QuotaPolicyID], references: [QuotaPolicyID])
   BusAssignment          BusAssignment        @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
+
+  quota_Policy Quota_Policy[]
 
   @@index([DriverID])
   @@index([ConductorID])
