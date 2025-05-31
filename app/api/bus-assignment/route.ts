@@ -181,7 +181,7 @@ const gethandler = async (request: NextRequest) => {
     return NextResponse.json(assignments, { status: 200 });
   } catch (error) {
     console.error('REGULAR_ASSIGNMENTS_ERROR', error);
-    return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch assignments asdasdasd' }, { status: 500 });
   }
 };
 

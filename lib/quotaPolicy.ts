@@ -26,7 +26,7 @@ export async function createQuotaPolicy({
 }: {
   type: string;
   value: number;
-  RegularBusAssignmentID: string;
+  RegularBusAssignmentID?: string;
 }) {
   validateQuotaPolicy(type, value);
   const QuotaPolicyID = await generateFormattedID('QP');
