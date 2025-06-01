@@ -47,6 +47,8 @@ const getHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
+            DriverID: true,
+            ConductorID: true,
             Change: true,
             TripRevenue: true,
             quota_Policy: {
