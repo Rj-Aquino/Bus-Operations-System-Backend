@@ -61,7 +61,8 @@ const postHandler = async (request: NextRequest) => {
   try {
     const data = await request.json();
 
-    // ...validation code...
+    // TODO: Add validation for required fields here (BusID, RouteID, DriverID, etc.)
+    // Also validate data.QuotaPolicy is an array with at least one element
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create BusAssignment and RegularBusAssignment
@@ -99,29 +100,32 @@ const postHandler = async (request: NextRequest) => {
         throw new Error('Failed to create RegularBusAssignment');
       }
 
-      // 2. Create Quota_Policy
-      await tx.quota_Policy.create({
-        data: {
-          QuotaPolicyID: await generateFormattedID('QP'),
-          RegularBusAssignmentID: regularBusAssignmentID,
-          ...(data.QuotaPolicy[0].type.toUpperCase() === 'FIXED'
-            ? {
-                Fixed: {
-                  create: {
-                    FQuotaPolicyID: await generateFormattedID('QP'),
-                    Quota: data.QuotaPolicy[0].value,
-                  },
-                },
-              }
-            : {
-                Percentage: {
-                  create: {
-                    PQuotaPolicyID: await generateFormattedID('QP'),
-                    Percentage: data.QuotaPolicy[0].value,
-                  },
-                },
-              }),
+      // 2. Create Quota_Policy with nested Fixed or Percentage
+      const quotaPolicyID = await generateFormattedID('QP');
+
+      const quotaPolicyCreateData: any = {
+        QuotaPolicyID: quotaPolicyID,
+        RegularBusAssignmentID: regularBusAssignmentID,
+        ...(data.QuotaPolicy[0].startDate && { StartDate: new Date(data.QuotaPolicy[0].startDate) }),
+        ...(data.QuotaPolicy[0].endDate && { EndDate: new Date(data.QuotaPolicy[0].endDate) }),
+      };
+
+      if (data.QuotaPolicy[0].type.toUpperCase() === 'FIXED') {
+      quotaPolicyCreateData.Fixed = {
+        create: {
+          Quota: data.QuotaPolicy[0].value,
         },
+      };
+    } else {
+      quotaPolicyCreateData.Percentage = {
+        create: {
+          Percentage: data.QuotaPolicy[0].value,
+        },
+      };
+    }
+
+      await tx.quota_Policy.create({
+        data: quotaPolicyCreateData,
       });
 
       // 3. Fetch the full assignment with quota policy for response
@@ -139,6 +143,8 @@ const postHandler = async (request: NextRequest) => {
               quota_Policy: {
                 select: {
                   QuotaPolicyID: true,
+                  StartDate: true,
+                  EndDate: true,
                   Fixed: { select: { Quota: true } },
                   Percentage: { select: { Percentage: true } },
                 },
