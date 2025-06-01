@@ -56,108 +56,6 @@ const stopData2 = [
   { StopName: "PITX Arrivals/Transfers", latitude: "14.826", longitude: "121.052" },
 ];
 
-// async function seedQuotaPolicy() {
-//   const quotaPolicyData = [
-//     {
-//       StartDate: new Date('2025-01-04T08:00:00'), // 8:00 AM
-//       EndDate: new Date('2025-01-04T18:00:00'),   // 6:00 PM
-//     },
-//     {
-//       StartDate: new Date('2025-07-04T09:00:00'), // 9:00 AM
-//       EndDate: new Date('2025-07-04T17:00:00'),   // 5:00 PM
-//     },
-//   ];
-
-//   // Generate formatted IDs and seed data
-//   for (let i = 0; i < quotaPolicyData.length; i++) {
-//     const quotaPolicyID = await generateFormattedID('QP')
-//     await prisma.quota_Policy.create({
-//       data: {
-//         QuotaPolicyID: quotaPolicyID,
-//         StartDate: quotaPolicyData[i].StartDate,
-//         EndDate: quotaPolicyData[i].EndDate,
-//       }
-//     });
-//   }
-
-//   console.log('Quota_Policy seeded');
-// }
-
-async function seedQuotaPolicy() {
-  const regularAssignments = await prisma.regularBusAssignment.findMany({ take: 2 });
-
-  if (regularAssignments.length < 2) {
-    throw new Error('Not enough RegularBusAssignments to create QuotaPolicies.');
-  }
-
-  const quotaPolicyData = [
-    {
-      StartDate: new Date('2025-01-04T08:00:00'),
-      EndDate: new Date('2025-01-04T18:00:00'),
-      RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
-    },
-    {
-      StartDate: new Date('2025-07-04T09:00:00'),
-      EndDate: new Date('2025-07-04T17:00:00'),
-      RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
-    },
-  ];
-
-  for (let i = 0; i < quotaPolicyData.length; i++) {
-    const quotaPolicyID = await generateFormattedID('QP');
-    await prisma.quota_Policy.create({
-      data: {
-        QuotaPolicyID: quotaPolicyID,
-        StartDate: quotaPolicyData[i].StartDate,
-        EndDate: quotaPolicyData[i].EndDate,
-        RegularBusAssignmentID: quotaPolicyData[i].RegularBusAssignmentID,
-      }
-    });
-  }
-
-  console.log('Quota_Policy seeded');
-}
-
-async function seedFixed() {
-  const quotaPolicies = await prisma.quota_Policy.findMany(); // Fetch all QuotaPolicy records
-
-  const fixedData = [
-    { FQuotaPolicyID: quotaPolicies[0].QuotaPolicyID, Quota: 1000 },
-  ];
-
-  // Generate formatted IDs and seed data for Fixed
-  for (let i = 0; i < fixedData.length; i++) {
-    await prisma.fixed.create({
-      data: {
-        FQuotaPolicyID: fixedData[i].FQuotaPolicyID,
-        Quota: fixedData[i].Quota,
-      }
-    });
-  }
-
-  console.log('Fixed seeded');
-}
-
-async function seedPercentage() {
-  const quotaPolicies = await prisma.quota_Policy.findMany(); // Fetch all QuotaPolicy records
-
-  const percentageData = [
-    { PQuotaPolicyID: quotaPolicies[1].QuotaPolicyID, Percentage: 0.1 },
-  ];
-
-  // Generate formatted IDs and seed data for Percentage
-  for (let i = 0; i < percentageData.length; i++) {
-    await prisma.percentage.create({
-      data: {
-        PQuotaPolicyID: percentageData[i].PQuotaPolicyID,
-        Percentage: percentageData[i].Percentage,
-      }
-    });
-  }
-
-  console.log('Percentage seeded');
-}
-
 async function seedStops() {
 
   // Combine and remove duplicates by StopName (first occurrence kept)
@@ -387,47 +285,9 @@ async function seedTicketBusAssignments() {
   console.log('TicketBusAssignment seeded');
 }
 
-// async function seedRegularBusAssignments() {
-
-//   const [busAssignments, quotaPolicies] = await Promise.all([
-//     prisma.busAssignment.findMany({
-//       take: 2, 
-//     }),
-//     prisma.quota_Policy.findMany({
-//       take: 2,
-//     }),
-//   ]);
-
-//   if (busAssignments.length < 2 || quotaPolicies.length < 2) {
-//     throw new Error('Not enough BusAssignments or QuotaPolicies to create RegularBusAssignments.');
-//   }
-
-//   await prisma.regularBusAssignment.createMany({
-//     data: [
-//       {
-//         RegularBusAssignmentID: busAssignments[0].BusAssignmentID,  // Foreign key from BusAssignments
-//         DriverID: "DRV-0001",             // Assuming DriverID is from API
-//         ConductorID: "CDT-0002",          // Assuming ConductorID is from API
-//         QuotaPolicyID: quotaPolicies[0].QuotaPolicyID,          
-//         Change: 0.05,
-//         TripRevenue: 1200.50,
-//       },
-//       {
-//         RegularBusAssignmentID: busAssignments[1].BusAssignmentID,  // Foreign key from BusAssignments
-//         DriverID: "DRV-0002",             // Assuming DriverID is from API
-//         ConductorID: "CDT-0001",          // Assuming ConductorID is from API
-//         QuotaPolicyID: quotaPolicies[1].QuotaPolicyID,          
-//         Change: 0.07,
-//         TripRevenue: 1300.75,
-//       },
-//     ],
-//   });
-
-//   console.log('Regular bus assignments seeded');
-// }
-
 async function seedRegularBusAssignments() {
   const busAssignments = await prisma.busAssignment.findMany({ take: 2 });
+  const quotaPolicies = await prisma.quota_Policy.findMany({ take: 2 });
 
   if (busAssignments.length < 2) {
     throw new Error('Not enough BusAssignments to create RegularBusAssignments.');
@@ -455,10 +315,82 @@ async function seedRegularBusAssignments() {
   console.log('Regular bus assignments seeded');
 }
 
+async function seedQuotaPolicy() {
+  const regularAssignments = await prisma.regularBusAssignment.findMany({ take: 2 });
+
+  if (regularAssignments.length < 2) {
+    throw new Error('Not enough RegularBusAssignments to create QuotaPolicies.');
+  }
+
+  const quotaPolicyData = [
+    {
+      StartDate: new Date('2025-01-04T08:00:00'),
+      EndDate: new Date('2025-01-04T18:00:00'),
+      RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
+    },
+    {
+      StartDate: new Date('2025-07-04T09:00:00'),
+      EndDate: new Date('2025-07-04T17:00:00'),
+      RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
+    },
+  ];
+
+  for (let i = 0; i < quotaPolicyData.length; i++) {
+    const quotaPolicyID = await generateFormattedID('QP');
+    await prisma.quota_Policy.create({
+      data: {
+        QuotaPolicyID: quotaPolicyID,
+        StartDate: quotaPolicyData[i].StartDate,
+        EndDate: quotaPolicyData[i].EndDate,
+        RegularBusAssignmentID: quotaPolicyData[i].RegularBusAssignmentID, // <-- use the FK directly
+      }
+    });
+  }
+
+  console.log('Quota_Policy seeded');
+}
+
+async function seedFixed() {
+  const quotaPolicies = await prisma.quota_Policy.findMany(); // Fetch all QuotaPolicy records
+
+  const fixedData = [
+    { FQuotaPolicyID: quotaPolicies[0].QuotaPolicyID, Quota: 1000 },
+  ];
+
+  // Generate formatted IDs and seed data for Fixed
+  for (let i = 0; i < fixedData.length; i++) {
+    await prisma.fixed.create({
+      data: {
+        FQuotaPolicyID: fixedData[i].FQuotaPolicyID,
+        Quota: fixedData[i].Quota,
+      }
+    });
+  }
+
+  console.log('Fixed seeded');
+}
+
+async function seedPercentage() {
+  const quotaPolicies = await prisma.quota_Policy.findMany(); // Fetch all QuotaPolicy records
+
+  const percentageData = [
+    { PQuotaPolicyID: quotaPolicies[1].QuotaPolicyID, Percentage: 0.1 },
+  ];
+
+  // Generate formatted IDs and seed data for Percentage
+  for (let i = 0; i < percentageData.length; i++) {
+    await prisma.percentage.create({
+      data: {
+        PQuotaPolicyID: percentageData[i].PQuotaPolicyID,
+        Percentage: percentageData[i].Percentage,
+      }
+    });
+  }
+
+  console.log('Percentage seeded');
+}
+
 async function main() {
-  // await seedQuotaPolicy();
-  // await seedFixed();
-  // await seedPercentage();
   await seedStops();
   await seedRoutes();
   await seedRouteStops();

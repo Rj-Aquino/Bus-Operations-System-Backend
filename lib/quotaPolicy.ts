@@ -26,19 +26,34 @@ export async function createQuotaPolicy({
 }: {
   type: string;
   value: number;
-  RegularBusAssignmentID?: string;
+  RegularBusAssignmentID: string; 
 }) {
   validateQuotaPolicy(type, value);
+
   const QuotaPolicyID = await generateFormattedID('QP');
   const normalizedType = type.toUpperCase();
 
   return prisma.quota_Policy.create({
     data: {
       QuotaPolicyID,
-      RegularBusAssignmentID,
+      RegularBusAssignmentID, 
       ...(normalizedType === 'FIXED'
-        ? { Fixed: { create: { Quota: value } } }
-        : { Percentage: { create: { Percentage: value } } }),
+        ? {
+            Fixed: {
+              create: {
+                FQuotaPolicyID: QuotaPolicyID,
+                Quota: value,
+              },
+            },
+          }
+        : {
+            Percentage: {
+              create: {
+                PQuotaPolicyID: QuotaPolicyID,
+                Percentage: value,
+              },
+            },
+          }),
     },
     select: {
       QuotaPolicyID: true,
@@ -48,18 +63,34 @@ export async function createQuotaPolicy({
 
 export async function updateQuotaPolicy(
   QuotaPolicyID: string,
-  data: { type: string; value: number; StartDate?: string; EndDate?: string }
+  data: { 
+    type: string; 
+    value: number; 
+    StartDate?: string; 
+    EndDate?: string; 
+    RegularBusAssignmentID?: string 
+  }
 ) {
   validateQuotaPolicy(data.type, data.value);
   const normalizedType = data.type.toUpperCase();
 
-  // Delete the old entry (assumes single type per policy)
+  // Step 1: Update StartDate/EndDate and RegularBusAssignmentID if provided
+  await prisma.quota_Policy.update({
+    where: { QuotaPolicyID },
+    data: {
+      ...(data.StartDate && { StartDate: new Date(data.StartDate) }),
+      ...(data.EndDate && { EndDate: new Date(data.EndDate) }),
+      ...(data.RegularBusAssignmentID && { RegularBusAssignmentID: data.RegularBusAssignmentID }),
+    },
+  });
+
+  // Step 2: Remove old quota values (from both Fixed and Percentage just in case)
   await prisma.$transaction([
     prisma.fixed.deleteMany({ where: { FQuotaPolicyID: QuotaPolicyID } }),
     prisma.percentage.deleteMany({ where: { PQuotaPolicyID: QuotaPolicyID } }),
   ]);
 
-  // Insert the new one
+  // Step 3: Create the new quota type
   if (normalizedType === 'FIXED') {
     await prisma.fixed.create({
       data: {

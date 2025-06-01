@@ -12,7 +12,7 @@ const putHandler = async (request: NextRequest) => {
   try {
     const url = new URL(request.url);
     const QuotaPolicyID = url.pathname.split('/').pop();
-    const { type, value } = await request.json();
+    const { type, value, RegularBusAssignmentID } = await request.json();
 
     if (!QuotaPolicyID) {
       return NextResponse.json({ error: 'QuotaPolicyID is required in the URL path.' }, { status: 400 });
@@ -37,6 +37,13 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const updatedQuotaPolicy = await prisma.$transaction(async (tx) => {
+      if (RegularBusAssignmentID) {
+        await tx.quota_Policy.update({
+          where: { QuotaPolicyID },
+          data: { RegularBusAssignmentID },
+        });
+      }
+
       if (normalizedType === 'fixed') {
         await tx.percentage.deleteMany({ where: { PQuotaPolicyID: QuotaPolicyID } });
         await tx.fixed.upsert({
@@ -59,9 +66,9 @@ const putHandler = async (request: NextRequest) => {
           QuotaPolicyID: true,
           StartDate: true,
           EndDate: true,
+          RegularBusAssignmentID: true,
           Fixed: { select: { Quota: true } },
           Percentage: { select: { Percentage: true } },
-          RegularBusAssignments: { select: { RegularBusAssignmentID: true } },
         },
       });
     });

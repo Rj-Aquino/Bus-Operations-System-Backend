@@ -44,18 +44,19 @@ const postHandler = async (request: NextRequest) => {
 
   try {
     const data = await request.json();
-    const { type, value } = data;
+    const { type, value, RegularBusAssignmentID } = data;
 
-    const normalizedType = type?.toLowerCase();
+    const normalizedType = type?.toUpperCase();
     const numericValue = parseFloat(value);
 
     if (
-      !['fixed', 'percentage'].includes(normalizedType) ||
-      isNaN(numericValue)
+      !['FIXED', 'PERCENTAGE'].includes(normalizedType) ||
+      isNaN(numericValue) ||
+      !RegularBusAssignmentID
     ) {
       return NextResponse.json(
         {
-          error: 'Invalid input. Type must be "Fixed" or "Percentage", and value must be a valid number.',
+          error: 'Invalid input. Type must be "Fixed" or "Percentage", value must be a valid number, and RegularBusAssignmentID is required.',
         },
         { status: 400 }
       );
@@ -66,15 +67,30 @@ const postHandler = async (request: NextRequest) => {
     const newQuotaPolicy = await prisma.quota_Policy.create({
       data: {
         QuotaPolicyID: newQuotaPolicyID,
-        ...(normalizedType === 'Fixed'
-          ? { Fixed: { create: { Quota: numericValue } } }
-          : { Percentage: { create: { Percentage: numericValue / 100 } } }),
+        RegularBusAssignmentID,
+        ...(normalizedType === 'FIXED'
+          ? {
+              Fixed: {
+                create: {
+                  FQuotaPolicyID: newQuotaPolicyID,
+                  Quota: numericValue,
+                },
+              },
+            }
+          : {
+              Percentage: {
+                create: {
+                  PQuotaPolicyID: newQuotaPolicyID,
+                  Percentage: numericValue,
+                },
+              },
+            }),
       },
       select: {
         QuotaPolicyID: true,
         Fixed: { select: { Quota: true } },
         Percentage: { select: { Percentage: true } },
-        RegularBusAssignments: { select: { RegularBusAssignmentID: true } },
+        regularBusAssignment: { select: { RegularBusAssignmentID: true } },
       },
     });
 

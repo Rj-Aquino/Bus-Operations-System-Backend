@@ -49,7 +49,7 @@ const getHandler = async (request: NextRequest) => {
           select: {
             Change: true,
             TripRevenue: true,
-            quotaPolicy: {
+            quota_Policy: {
               select: {
                 QuotaPolicyID: true,
                 Fixed: {
