@@ -150,11 +150,13 @@ const patchHandler = async (request: NextRequest) => {
     }
 
     const body = await request.json();
-    const { IsDeleted } = body;
+    let { IsDeleted } = body;
 
     if (typeof IsDeleted !== 'boolean') {
       return NextResponse.json({ error: '`isDeleted` must be a boolean' }, { status: 400 });
     }
+
+    IsDeleted = !IsDeleted;
 
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
