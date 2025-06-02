@@ -77,15 +77,27 @@ const putHandler = async (request: NextRequest) => {
       if ('TripRevenue' in body) revenueDetailData.TripRevenue = Number(body.TripRevenue);
 
       const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
+      const { RevenueDetailID } = body;
 
-      const latestRevenueDetail = await prisma.revenueDetail.findFirst({
-        where: { RegularBusAssignmentID: regularBusAssignmentID },
-        orderBy: { RevenueDetailID: 'desc' }, // If you have a createdAt field, use that instead
-      });
+      let shouldUpdate = false;
+      const revenueDetailIdToUpdate = RevenueDetailID;
 
-      if (latestRevenueDetail) {
+      if (RevenueDetailID) {
+        // Check if this RevenueDetail exists for this assignment
+        const existingRevenueDetail = await prisma.revenueDetail.findFirst({
+          where: {
+            RevenueDetailID,
+            RegularBusAssignmentID: regularBusAssignmentID,
+          },
+        });
+        if (existingRevenueDetail) {
+          shouldUpdate = true;
+        }
+      }
+
+      if (shouldUpdate) {
         await prisma.revenueDetail.update({
-          where: { RevenueDetailID: latestRevenueDetail.RevenueDetailID },
+          where: { RevenueDetailID: revenueDetailIdToUpdate },
           data: revenueDetailData,
         });
       } else {
@@ -93,11 +105,10 @@ const putHandler = async (request: NextRequest) => {
           data: {
             ...revenueDetailData,
             RegularBusAssignmentID: regularBusAssignmentID,
-            RevenueDetailID: await generateFormattedID('RVD'), 
+            RevenueDetailID: await generateFormattedID('RVD'),
           },
         });
       }
-
     }
 
     if (Array.isArray(body.TicketBusAssignments)) {
@@ -162,7 +173,7 @@ const putHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
-            RevenueDetails: { // <-- updated: fetch all revenue details for this assignment
+            RevenueDetails: {
               select: {
                 RevenueDetailID: true,
                 TripRevenue: true,
