@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { generateFormattedID } from '@/lib/idGenerator';
 
 enum BusOperationStatus {
   NotStarted = 'NotStarted',
@@ -77,7 +78,6 @@ const putHandler = async (request: NextRequest) => {
 
       const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
 
-      // Try to find the latest RevenueDetail for this assignment
       const latestRevenueDetail = await prisma.revenueDetail.findFirst({
         where: { RegularBusAssignmentID: regularBusAssignmentID },
         orderBy: { RevenueDetailID: 'desc' }, // If you have a createdAt field, use that instead
@@ -93,10 +93,11 @@ const putHandler = async (request: NextRequest) => {
           data: {
             ...revenueDetailData,
             RegularBusAssignmentID: regularBusAssignmentID,
-            RevenueDetailID: crypto.randomUUID(),
+            RevenueDetailID: await generateFormattedID('RVD'), // <-- use your ID generator here
           },
         });
       }
+
     }
 
     if (Array.isArray(body.TicketBusAssignments)) {
