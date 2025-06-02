@@ -93,7 +93,7 @@ const putHandler = async (request: NextRequest) => {
           data: {
             ...revenueDetailData,
             RegularBusAssignmentID: regularBusAssignmentID,
-            RevenueDetailID: await generateFormattedID('RVD'), // <-- use your ID generator here
+            RevenueDetailID: await generateFormattedID('RVD'), 
           },
         });
       }
