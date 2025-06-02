@@ -70,6 +70,7 @@ model RouteStop {
 
 enum BusOperationStatus {
   NotStarted
+  NotReady
   InOperation
   Completed
 }
@@ -125,12 +126,20 @@ model RegularBusAssignment {
   RegularBusAssignmentID String @id
   DriverID               String 
   ConductorID            String 
-  Change                 Float  @default(0)
-  TripRevenue            Float  @default(0)
   BusAssignment          BusAssignment        @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
 
   quota_Policy Quota_Policy[]
+  RevenueDetails RevenueDetail[] 
 
   @@index([DriverID])
   @@index([ConductorID])
+}
+
+model RevenueDetail {
+  RevenueDetailID           String @id
+  RegularBusAssignmentID    String
+  TripRevenue               Float @default(0)
+  Change                    Float @default(0)
+
+  regularBusAssignment      RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
 }

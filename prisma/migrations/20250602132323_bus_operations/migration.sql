@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'InOperation', 'Completed');
+CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'NotReady', 'InOperation', 'Completed');
 
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
@@ -106,10 +106,18 @@ CREATE TABLE "RegularBusAssignment" (
     "RegularBusAssignmentID" TEXT NOT NULL,
     "DriverID" TEXT NOT NULL,
     "ConductorID" TEXT NOT NULL,
-    "Change" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "TripRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
 
     CONSTRAINT "RegularBusAssignment_pkey" PRIMARY KEY ("RegularBusAssignmentID")
+);
+
+-- CreateTable
+CREATE TABLE "RevenueDetail" (
+    "RevenueDetailID" TEXT NOT NULL,
+    "RegularBusAssignmentID" TEXT NOT NULL,
+    "TripRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "Change" DOUBLE PRECISION NOT NULL DEFAULT 0,
+
+    CONSTRAINT "RevenueDetail_pkey" PRIMARY KEY ("RevenueDetailID")
 );
 
 -- CreateIndex
@@ -156,3 +164,6 @@ ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RevenueDetail" ADD CONSTRAINT "RevenueDetail_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;

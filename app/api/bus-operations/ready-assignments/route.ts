@@ -48,8 +48,13 @@ const getVerifiedAssignments = async (request: NextRequest) => {
           select: {
             DriverID: true,
             ConductorID: true,
-            Change: true,
-            TripRevenue: true,
+            RevenueDetails: { // <-- updated: fetch all revenue details for this assignment
+              select: {
+                RevenueDetailID: true,
+                TripRevenue: true,
+                Change: true,
+              },
+            },
             quota_Policy: {
               select: {
                 QuotaPolicyID: true,

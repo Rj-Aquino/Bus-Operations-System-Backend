@@ -7,6 +7,7 @@ enum BusOperationStatus {
   NotStarted = 'NotStarted',
   InOperation = 'InOperation',
   Completed = 'Completed',
+  NotReady = 'NotReady',
 }
 
 type BusAssignmentUpdateData = Partial<{
@@ -22,11 +23,6 @@ type BusAssignmentUpdateData = Partial<{
   TireCondition: boolean;
   Self_Driver: boolean;
   Self_Conductor: boolean;
-}>;
-
-type RegularBusAssignmentUpdateData = Partial<{
-  Change: number;
-  TripRevenue: number;
 }>;
 
 const putHandler = async (request: NextRequest) => {
@@ -70,23 +66,37 @@ const putHandler = async (request: NextRequest) => {
       include: { RegularBusAssignment: true },
     });
 
-    const regularUpdateFields: RegularBusAssignmentUpdateData = {};
-    if ('Change' in body) regularUpdateFields.Change = Number(body.Change);
-    if ('TripRevenue' in body) regularUpdateFields.TripRevenue = Number(body.TripRevenue);
+    // Handle RevenueDetail update or creation if Change or TripRevenue is present
+    if (
+      updatedBusAssignment.RegularBusAssignment &&
+      ('Change' in body || 'TripRevenue' in body)
+    ) {
+      const revenueDetailData: any = {};
+      if ('Change' in body) revenueDetailData.Change = Number(body.Change);
+      if ('TripRevenue' in body) revenueDetailData.TripRevenue = Number(body.TripRevenue);
 
-    if (updatedBusAssignment.RegularBusAssignment) {
-      if (Object.keys(regularUpdateFields).length > 0) {
-        await prisma.regularBusAssignment.update({
-          where: {
-            RegularBusAssignmentID: updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID,
+      const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
+
+      // Try to find the latest RevenueDetail for this assignment
+      const latestRevenueDetail = await prisma.revenueDetail.findFirst({
+        where: { RegularBusAssignmentID: regularBusAssignmentID },
+        orderBy: { RevenueDetailID: 'desc' }, // If you have a createdAt field, use that instead
+      });
+
+      if (latestRevenueDetail) {
+        await prisma.revenueDetail.update({
+          where: { RevenueDetailID: latestRevenueDetail.RevenueDetailID },
+          data: revenueDetailData,
+        });
+      } else {
+        await prisma.revenueDetail.create({
+          data: {
+            ...revenueDetailData,
+            RegularBusAssignmentID: regularBusAssignmentID,
+            RevenueDetailID: crypto.randomUUID(),
           },
-          data: regularUpdateFields,
         });
       }
-    } else if (Object.keys(regularUpdateFields).length > 0) {
-      return NextResponse.json({
-        error: 'No RegularBusAssignment related to this BusAssignment to update Change or TripRevenue',
-      }, { status: 400 });
     }
 
     if (Array.isArray(body.TicketBusAssignments)) {
@@ -151,8 +161,13 @@ const putHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
-            Change: true,
-            TripRevenue: true,
+            RevenueDetails: { // <-- updated: fetch all revenue details for this assignment
+              select: {
+                RevenueDetailID: true,
+                TripRevenue: true,
+                Change: true,
+              },
+            },
             quota_Policy: {
               select: {
                 QuotaPolicyID: true,

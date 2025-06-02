@@ -287,7 +287,6 @@ async function seedTicketBusAssignments() {
 
 async function seedRegularBusAssignments() {
   const busAssignments = await prisma.busAssignment.findMany({ take: 2 });
-  const quotaPolicies = await prisma.quota_Policy.findMany({ take: 2 });
 
   if (busAssignments.length < 2) {
     throw new Error('Not enough BusAssignments to create RegularBusAssignments.');
@@ -299,20 +298,43 @@ async function seedRegularBusAssignments() {
         RegularBusAssignmentID: busAssignments[0].BusAssignmentID,
         DriverID: "DRV-0001",
         ConductorID: "CDT-0002",
-        Change: 0.05,
-        TripRevenue: 1200.50,
       },
       {
         RegularBusAssignmentID: busAssignments[1].BusAssignmentID,
         DriverID: "DRV-0002",
         ConductorID: "CDT-0001",
-        Change: 0.07,
-        TripRevenue: 1300.75,
       },
     ],
   });
 
   console.log('Regular bus assignments seeded');
+}
+
+async function seedRevenueDetails() {
+  const regularAssignments = await prisma.regularBusAssignment.findMany({ take: 2 });
+
+  if (regularAssignments.length < 2) {
+    throw new Error('Not enough RegularBusAssignments to create RevenueDetails.');
+  }
+
+  await prisma.revenueDetail.createMany({
+    data: [
+      {
+        RevenueDetailID: await generateFormattedID('RVD'),
+        RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
+        TripRevenue: 1200.50,
+        Change: 0.05,
+      },
+      {
+        RevenueDetailID: await generateFormattedID('RVD'),
+        RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
+        TripRevenue: 1300.75,
+        Change: 0.07,
+      },
+    ],
+  });
+
+  console.log('RevenueDetails seeded');
 }
 
 async function seedQuotaPolicy() {
@@ -398,6 +420,7 @@ async function main() {
   await seedBusAssignments();
   await seedTicketBusAssignments();
   await seedRegularBusAssignments();
+  await seedRevenueDetails();
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();

@@ -1,9 +1,12 @@
+import { redis } from '@/lib/redis';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
-import { generateFormattedID } from '@/lib/idGenerator';
-import { createQuotaPolicy } from '@/lib/quotaPolicy';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { generateFormattedID } from '@/lib/idGenerator';
+
+const ASSIGNMENTS_CACHE_KEY = 'regular_bus_assignments';
+const TTL_SECONDS = 60 * 60; // 1 hour cache
 
 const gethandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -11,6 +14,17 @@ const gethandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
+  // 1. Check Redis cache
+  const cached = await redis.get(ASSIGNMENTS_CACHE_KEY);
+  if (cached && typeof cached === 'string') {
+    try {
+      return NextResponse.json(JSON.parse(cached), { status: 200 });
+    } catch {
+      await redis.del(ASSIGNMENTS_CACHE_KEY); // Clear bad cache
+    }
+  }
+
+  // 2. Fetch from Prisma
   try {
     const assignments = await prisma.regularBusAssignment.findMany({
       where: {
@@ -22,8 +36,6 @@ const gethandler = async (request: NextRequest) => {
         RegularBusAssignmentID: true,
         DriverID: true,
         ConductorID: true,
-        Change: true,
-        TripRevenue: true,
         quota_Policy: {
           select: {
             QuotaPolicyID: true,
@@ -46,12 +58,16 @@ const gethandler = async (request: NextRequest) => {
       },
     });
 
+    // 3. Cache the result
+    await redis.set(ASSIGNMENTS_CACHE_KEY, JSON.stringify(assignments), { ex: TTL_SECONDS });
+
     return NextResponse.json(assignments, { status: 200 });
   } catch (error) {
     console.error('REGULAR_ASSIGNMENTS_ERROR', error);
-    return NextResponse.json({ error: 'Failed to fetch assignments asdasdasd' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
   }
 };
+
 
 const postHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -89,8 +105,6 @@ const postHandler = async (request: NextRequest) => {
               RegularBusAssignmentID: true,
               DriverID: true,
               ConductorID: true,
-              Change: true,
-              TripRevenue: true,
             },
           },
         },
@@ -139,8 +153,6 @@ const postHandler = async (request: NextRequest) => {
             select: {
               DriverID: true,
               ConductorID: true,
-              Change: true,
-              TripRevenue: true,
               quota_Policy: {
                 select: {
                   QuotaPolicyID: true,
@@ -155,7 +167,8 @@ const postHandler = async (request: NextRequest) => {
         },
       });
     });
-
+    
+    await redis.del('regular_bus_assignments');
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('CREATE_ASSIGNMENT_ERROR:', error);
