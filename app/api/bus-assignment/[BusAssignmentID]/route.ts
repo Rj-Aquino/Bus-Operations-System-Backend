@@ -3,6 +3,7 @@ import prisma from '@/client';
 import { updateQuotaPolicy } from '@/lib/quotaPolicy';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { generateFormattedID } from '@/lib/idGenerator';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -25,7 +26,7 @@ const putHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
     }
 
-    // Fetch current RegularBusAssignment and QuotaPolicy
+    // Fetch current RegularBusAssignment and QuotaPolicies
     const existing = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
@@ -43,7 +44,6 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const oldRegularBusAssignmentID = existing.RegularBusAssignment.RegularBusAssignmentID;
-    const QuotaPolicyID = existing.RegularBusAssignment.quota_Policy?.[0]?.QuotaPolicyID;
 
     // Update BusAssignment and RegularBusAssignment
     const updated = await prisma.busAssignment.update({
@@ -80,31 +80,66 @@ const putHandler = async (request: NextRequest) => {
       },
     });
 
-    // If the RegularBusAssignmentID changed, update Quota_Policy's RegularBusAssignmentID
     const newRegularBusAssignmentID = updated.RegularBusAssignment?.RegularBusAssignmentID;
-    if (
-      QuotaPolicyID &&
-      newRegularBusAssignmentID &&
-      newRegularBusAssignmentID !== oldRegularBusAssignmentID
-    ) {
-      await prisma.quota_Policy.update({
-        where: { QuotaPolicyID },
-        data: { RegularBusAssignmentID: newRegularBusAssignmentID },
-      });
+
+    // Delete existing quota policies for this RegularBusAssignment
+    await prisma.quota_Policy.deleteMany({
+      where: { RegularBusAssignmentID: newRegularBusAssignmentID },
+    });
+
+    // Create new quota policies
+    if (Array.isArray(data.quotaPolicies)) {
+      for (const qp of data.quotaPolicies) {
+        const { type, value, StartDate, EndDate } = qp;
+
+        if (!type || value == null) {
+          return NextResponse.json(
+            { error: 'Each quota policy must have type and value.' },
+            { status: 400 }
+          );
+        }
+
+        if (!StartDate || !EndDate) {
+          return NextResponse.json(
+            { error: `Each quota policy must have StartDate and EndDate.` },
+            { status: 400 }
+          );
+        }
+
+        const createdQuotaPolicy = await prisma.quota_Policy.create({
+          data: {
+            QuotaPolicyID: generateFormattedID("QP"),
+            RegularBusAssignmentID: newRegularBusAssignmentID!,
+            StartDate: new Date(StartDate),
+            EndDate: new Date(EndDate),
+          },
+        });
+
+        if (type.toUpperCase() === 'FIXED') {
+          await prisma.fixed.create({
+            data: {
+              FQuotaPolicyID: createdQuotaPolicy.QuotaPolicyID,
+              Quota: value,
+            },
+          });
+        } else if (type.toUpperCase() === 'PERCENTAGE') {
+          await prisma.percentage.create({
+            data: {
+              PQuotaPolicyID: createdQuotaPolicy.QuotaPolicyID,
+              Percentage: value,
+            },
+          });
+        } else {
+          return NextResponse.json(
+            { error: `Invalid quota policy type: ${type}` },
+            { status: 400 }
+          );
+        }
+      }
     }
 
-    // If quota policy update is requested
-    if (QuotaPolicyID && data.type && data.value != null) {
-      await updateQuotaPolicy(QuotaPolicyID, {
-        type: data.type,
-        value: data.value,
-        StartDate: data.StartDate,
-        EndDate: data.EndDate,
-        RegularBusAssignmentID: newRegularBusAssignmentID,
-      });
-    }
 
-    // Refetch for latest quota policy info
+    // Refetch updated bus assignment with quota policies
     const refreshed = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
@@ -119,6 +154,8 @@ const putHandler = async (request: NextRequest) => {
             quota_Policy: {
               select: {
                 QuotaPolicyID: true,
+                StartDate: true,
+                EndDate: true,
                 Fixed: { select: { Quota: true } },
                 Percentage: { select: { Percentage: true } },
               },
@@ -134,6 +171,7 @@ const putHandler = async (request: NextRequest) => {
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 };
+
 
 const patchHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);

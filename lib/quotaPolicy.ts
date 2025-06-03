@@ -74,36 +74,38 @@ export async function updateQuotaPolicy(
   validateQuotaPolicy(data.type, data.value);
   const normalizedType = data.type.toUpperCase();
 
-  // Step 1: Update StartDate/EndDate and RegularBusAssignmentID if provided
-  await prisma.quota_Policy.update({
-    where: { QuotaPolicyID },
-    data: {
-      ...(data.StartDate && { StartDate: new Date(data.StartDate) }),
-      ...(data.EndDate && { EndDate: new Date(data.EndDate) }),
-      ...(data.RegularBusAssignmentID && { RegularBusAssignmentID: data.RegularBusAssignmentID }),
-    },
+  await prisma.$transaction(async (tx) => {
+    // Step 1: Update Quota_Policy dates and RegularBusAssignmentID
+    await tx.quota_Policy.update({
+      where: { QuotaPolicyID },
+      data: {
+        ...(data.StartDate && { StartDate: new Date(data.StartDate) }),
+        ...(data.EndDate && { EndDate: new Date(data.EndDate) }),
+        ...(data.RegularBusAssignmentID && { RegularBusAssignmentID: data.RegularBusAssignmentID }),
+      },
+    });
+
+    // Step 2: Delete any existing Fixed or Percentage related to this QuotaPolicyID
+    await Promise.all([
+      tx.fixed.deleteMany({ where: { FQuotaPolicyID: QuotaPolicyID } }),
+      tx.percentage.deleteMany({ where: { PQuotaPolicyID: QuotaPolicyID } }),
+    ]);
+
+    // Step 3: Create the new quota type entry (Fixed or Percentage)
+    if (normalizedType === 'FIXED') {
+      await tx.fixed.create({
+        data: {
+          FQuotaPolicyID: QuotaPolicyID,
+          Quota: data.value,
+        },
+      });
+    } else {
+      await tx.percentage.create({
+        data: {
+          PQuotaPolicyID: QuotaPolicyID,
+          Percentage: data.value,
+        },
+      });
+    }
   });
-
-  // Step 2: Remove old quota values (from both Fixed and Percentage just in case)
-  await prisma.$transaction([
-    prisma.fixed.deleteMany({ where: { FQuotaPolicyID: QuotaPolicyID } }),
-    prisma.percentage.deleteMany({ where: { PQuotaPolicyID: QuotaPolicyID } }),
-  ]);
-
-  // Step 3: Create the new quota type
-  if (normalizedType === 'FIXED') {
-    await prisma.fixed.create({
-      data: {
-        FQuotaPolicyID: QuotaPolicyID,
-        Quota: data.value,
-      },
-    });
-  } else {
-    await prisma.percentage.create({
-      data: {
-        PQuotaPolicyID: QuotaPolicyID,
-        Percentage: data.value,
-      },
-    });
-  }
 }
