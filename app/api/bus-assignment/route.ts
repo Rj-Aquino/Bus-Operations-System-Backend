@@ -39,6 +39,8 @@ const gethandler = async (request: NextRequest) => {
         quota_Policy: {
           select: {
             QuotaPolicyID: true,
+            StartDate: true,
+            EndDate: true,
             Fixed: { select: { Quota: true } },
             Percentage: { select: { Percentage: true } },
           },
