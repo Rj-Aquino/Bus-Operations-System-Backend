@@ -78,6 +78,7 @@ const postHandler = async (request: NextRequest) => {
 
   try {
     const data = await request.json();
+    console.log('Received data (POST /bus-assignment):', data);
 
     // TODO: Add validation for required fields here (BusID, RouteID, DriverID, etc.)
     // Also validate data.QuotaPolicies is an array with at least one element
