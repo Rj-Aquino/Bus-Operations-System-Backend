@@ -310,31 +310,35 @@ async function seedRegularBusAssignments() {
   console.log('Regular bus assignments seeded');
 }
 
-async function seedRevenueDetails() {
+async function seedBusTrips() {
   const regularAssignments = await prisma.regularBusAssignment.findMany({ take: 2 });
 
   if (regularAssignments.length < 2) {
-    throw new Error('Not enough RegularBusAssignments to create RevenueDetails.');
+    throw new Error('Not enough RegularBusAssignments to create BusTrips.');
   }
 
-  await prisma.revenueDetail.createMany({
+  await prisma.busTrip.createMany({
     data: [
       {
-        RevenueDetailID: await generateFormattedID('RVD'),
+        BusTripID: await generateFormattedID('BT'),
         RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
-        TripRevenue: 1200.50,
-        Change: 0.05,
+        DispatchedAt: new Date('2025-06-01T08:00:00Z'),
+        CompletedAt: new Date('2025-06-01T10:00:00Z'),
+        Sales: 1500.25,
+        ChangeFund: 100.00,
       },
       {
-        RevenueDetailID: await generateFormattedID('RVD'),
+        BusTripID: await generateFormattedID('BT'),
         RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
-        TripRevenue: 1300.75,
-        Change: 0.07,
+        DispatchedAt: new Date('2025-06-02T09:00:00Z'),
+        CompletedAt: null,
+        Sales: null,
+        ChangeFund: 120.00,
       },
     ],
   });
 
-  console.log('RevenueDetails seeded');
+  console.log('BusTrips seeded');
 }
 
 async function seedQuotaPolicy() {
@@ -420,7 +424,7 @@ async function main() {
   await seedBusAssignments();
   await seedTicketBusAssignments();
   await seedRegularBusAssignments();
-  await seedRevenueDetails();
+  await seedBusTrips();
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();

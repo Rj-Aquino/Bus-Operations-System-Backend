@@ -36,7 +36,7 @@ const gethandler = async (request: NextRequest) => {
         RegularBusAssignmentID: true,
         DriverID: true,
         ConductorID: true,
-        quota_Policy: {
+        QuotaPolicies: {
           select: {
             QuotaPolicyID: true,
             StartDate: true,
@@ -70,7 +70,6 @@ const gethandler = async (request: NextRequest) => {
   }
 };
 
-
 const postHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
@@ -81,12 +80,10 @@ const postHandler = async (request: NextRequest) => {
     const data = await request.json();
 
     // TODO: Add validation for required fields here (BusID, RouteID, DriverID, etc.)
-    // Also validate data.QuotaPolicy is an array with at least one element
+    // Also validate data.QuotaPolicies is an array with at least one element
 
     const busAssignmentID = generateFormattedID('BA');
-    const quotaPolicyID = generateFormattedID('QP');
 
-    // Start creation inside a safe transaction (10s timeout)
     await prisma.$transaction(async (tx) => {
       // 1. Create BusAssignment with RegularBusAssignment (1:1 via ID)
       await tx.busAssignment.create({
@@ -104,31 +101,34 @@ const postHandler = async (request: NextRequest) => {
         },
       });
 
-      // 2. Build Quota_Policy + either Fixed or Percentage
-      const quotaPolicyData: any = {
-        QuotaPolicyID: quotaPolicyID,
-        RegularBusAssignmentID: busAssignmentID,
-        ...(data.QuotaPolicy[0].startDate && { StartDate: new Date(data.QuotaPolicy[0].startDate) }),
-        ...(data.QuotaPolicy[0].endDate && { EndDate: new Date(data.QuotaPolicy[0].endDate) }),
-      };
+      // 2. Create all QuotaPolicies for this RegularBusAssignment
+      for (const qp of data.QuotaPolicies) {
+        const quotaPolicyID = generateFormattedID('QP');
+        const quotaPolicyData: any = {
+          QuotaPolicyID: quotaPolicyID,
+          RegularBusAssignmentID: busAssignmentID,
+          ...(qp.startDate && { StartDate: new Date(qp.startDate) }),
+          ...(qp.endDate && { EndDate: new Date(qp.endDate) }),
+        };
 
-      if (data.QuotaPolicy[0].type.toUpperCase() === 'FIXED') {
-        quotaPolicyData.Fixed = {
-          create: {
-            Quota: data.QuotaPolicy[0].value,
-          },
-        };
-      } else {
-        quotaPolicyData.Percentage = {
-          create: {
-            Percentage: data.QuotaPolicy[0].value,
-          },
-        };
+        if (qp.type && qp.type.toUpperCase() === 'FIXED') {
+          quotaPolicyData.Fixed = {
+            create: {
+              Quota: qp.value,
+            },
+          };
+        } else if (qp.type && qp.type.toUpperCase() === 'PERCENTAGE') {
+          quotaPolicyData.Percentage = {
+            create: {
+              Percentage: qp.value,
+            },
+          };
+        }
+
+        await tx.quota_Policy.create({
+          data: quotaPolicyData,
+        });
       }
-
-      await tx.quota_Policy.create({
-        data: quotaPolicyData,
-      });
     }, { timeout: 10_000 });
 
     // 3. Fetch result after transaction
@@ -141,7 +141,7 @@ const postHandler = async (request: NextRequest) => {
           select: {
             DriverID: true,
             ConductorID: true,
-            quota_Policy: {
+            QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 StartDate: true,
@@ -166,7 +166,6 @@ const postHandler = async (request: NextRequest) => {
     );
   }
 };
-
 
 export const GET = withCors(gethandler);
 export const POST = withCors(postHandler);
