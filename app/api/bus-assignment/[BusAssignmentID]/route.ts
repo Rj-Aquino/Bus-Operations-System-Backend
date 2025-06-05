@@ -20,6 +20,7 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const data = await request.json();
+    console.log('Received data (PUT /bus-assignment/[BusAssignmentID]):', data);
 
     const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id?.split('-')[1]);
     if (driverSuffix === conductorSuffix) {
