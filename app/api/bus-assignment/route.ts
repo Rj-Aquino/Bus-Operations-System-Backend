@@ -103,7 +103,7 @@ const postHandler = async (request: NextRequest) => {
       });
 
       // 2. Create all QuotaPolicies for this RegularBusAssignment
-      for (const qp of data.QuotaPolicies) {
+      for (const qp of data.QuotaPolicy) {
         const quotaPolicyID = generateFormattedID('QP');
         const quotaPolicyData: any = {
           QuotaPolicyID: quotaPolicyID,

@@ -67,8 +67,8 @@ const putHandler = async (request: NextRequest) => {
     });
 
     // Create new quota policies
-    if (Array.isArray(data.QuotaPolicies)) {
-      for (const qp of data.QuotaPolicies) {
+    if (Array.isArray(data.QuotaPolicy)) {
+      for (const qp of data.QuotaPolicy) {
         const { type, value, StartDate, EndDate } = qp;
 
         if (!type || value == null) {
