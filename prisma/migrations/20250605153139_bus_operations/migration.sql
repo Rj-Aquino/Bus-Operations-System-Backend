@@ -111,13 +111,15 @@ CREATE TABLE "RegularBusAssignment" (
 );
 
 -- CreateTable
-CREATE TABLE "RevenueDetail" (
-    "RevenueDetailID" TEXT NOT NULL,
+CREATE TABLE "BusTrip" (
+    "BusTripID" TEXT NOT NULL,
     "RegularBusAssignmentID" TEXT NOT NULL,
-    "TripRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "Change" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "DispatchedAt" TIMESTAMP(3),
+    "CompletedAt" TIMESTAMP(3),
+    "Sales" DOUBLE PRECISION,
+    "ChangeFund" DOUBLE PRECISION,
 
-    CONSTRAINT "RevenueDetail_pkey" PRIMARY KEY ("RevenueDetailID")
+    CONSTRAINT "BusTrip_pkey" PRIMARY KEY ("BusTripID")
 );
 
 -- CreateIndex
@@ -166,4 +168,4 @@ ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN 
 ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RevenueDetail" ADD CONSTRAINT "RevenueDetail_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BusTrip" ADD CONSTRAINT "BusTrip_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;

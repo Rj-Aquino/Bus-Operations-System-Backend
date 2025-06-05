@@ -128,18 +128,20 @@ model RegularBusAssignment {
   ConductorID            String 
   BusAssignment          BusAssignment        @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
 
-  quota_Policy Quota_Policy[]
-  RevenueDetails RevenueDetail[] 
+  QuotaPolicies Quota_Policy[]
+  BusTrips BusTrip[] 
 
   @@index([DriverID])
   @@index([ConductorID])
 }
 
-model RevenueDetail {
-  RevenueDetailID           String @id
-  RegularBusAssignmentID    String
-  TripRevenue               Float @default(0)
-  Change                    Float @default(0)
+model BusTrip {
+  BusTripID               String   @id
+  RegularBusAssignmentID  String
+  DispatchedAt            DateTime?
+  CompletedAt             DateTime?
+  Sales                   Float?
+  ChangeFund              Float?
 
-  regularBusAssignment      RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+  regularBusAssignment    RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
 }

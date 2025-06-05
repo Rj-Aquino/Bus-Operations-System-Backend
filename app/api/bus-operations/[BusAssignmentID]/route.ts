@@ -67,45 +67,54 @@ const putHandler = async (request: NextRequest) => {
       include: { RegularBusAssignment: true },
     });
 
-    // Handle RevenueDetail update or creation if Change or TripRevenue is present
+    // Handle BusTrips update or creation if present in body
     if (
       updatedBusAssignment.RegularBusAssignment &&
-      ('Change' in body || 'TripRevenue' in body)
+      Array.isArray(body.BusTrips)
     ) {
-      const revenueDetailData: any = {};
-      if ('Change' in body) revenueDetailData.Change = Number(body.Change);
-      if ('TripRevenue' in body) revenueDetailData.TripRevenue = Number(body.TripRevenue);
+      for (const trip of body.BusTrips) {
+        const {
+          BusTripID,
+          DispatchedAt,
+          CompletedAt,
+          Sales,
+          ChangeFund,
+        } = trip;
 
-      const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
-      const { RevenueDetailID } = body;
+        const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
 
-      let shouldUpdate = false;
-      const revenueDetailIdToUpdate = RevenueDetailID;
+        if (BusTripID) {
+          // Try to update existing BusTrip
+          const existingBusTrip = await prisma.busTrip.findFirst({
+            where: {
+              BusTripID,
+              RegularBusAssignmentID: regularBusAssignmentID,
+            },
+          });
 
-      if (RevenueDetailID) {
-        // Check if this RevenueDetail exists for this assignment
-        const existingRevenueDetail = await prisma.revenueDetail.findFirst({
-          where: {
-            RevenueDetailID,
-            RegularBusAssignmentID: regularBusAssignmentID,
-          },
-        });
-        if (existingRevenueDetail) {
-          shouldUpdate = true;
+          if (existingBusTrip) {
+            await prisma.busTrip.update({
+              where: { BusTripID },
+              data: {
+                DispatchedAt: DispatchedAt ? new Date(DispatchedAt) : null,
+                CompletedAt: CompletedAt ? new Date(CompletedAt) : null,
+                Sales: typeof Sales === 'number' ? Sales : null,
+                ChangeFund: typeof ChangeFund === 'number' ? ChangeFund : null,
+              },
+            });
+            continue;
+          }
         }
-      }
 
-      if (shouldUpdate) {
-        await prisma.revenueDetail.update({
-          where: { RevenueDetailID: revenueDetailIdToUpdate },
-          data: revenueDetailData,
-        });
-      } else {
-        await prisma.revenueDetail.create({
+        // If no BusTripID or not found, create a new BusTrip
+        await prisma.busTrip.create({
           data: {
-            ...revenueDetailData,
+            BusTripID: BusTripID || await generateFormattedID('BT'),
             RegularBusAssignmentID: regularBusAssignmentID,
-            RevenueDetailID: await generateFormattedID('RVD'),
+            DispatchedAt: DispatchedAt ? new Date(DispatchedAt) : null,
+            CompletedAt: CompletedAt ? new Date(CompletedAt) : null,
+            Sales: typeof Sales === 'number' ? Sales : null,
+            ChangeFund: typeof ChangeFund === 'number' ? ChangeFund : null,
           },
         });
       }
@@ -173,18 +182,13 @@ const putHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
-            RevenueDetails: {
+            BusTrips: { 
               select: {
-                RevenueDetailID: true,
-                TripRevenue: true,
-                Change: true,
-              },
-            },
-            quota_Policy: {
-              select: {
-                QuotaPolicyID: true,
-                Fixed: { select: { Quota: true } },
-                Percentage: { select: { Percentage: true } },
+                BusTripID: true,
+                DispatchedAt: true,
+                CompletedAt: true,
+                Sales: true,
+                ChangeFund: true,
               },
             },
           },

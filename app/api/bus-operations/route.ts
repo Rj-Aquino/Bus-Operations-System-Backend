@@ -49,14 +49,16 @@ const getHandler = async (request: NextRequest) => {
           select: {
             DriverID: true,
             ConductorID: true,
-            RevenueDetails: { // <-- NEW: fetch all revenue details for this assignment
+            BusTrips: {
               select: {
-                RevenueDetailID: true,
-                TripRevenue: true,
-                Change: true,
+                BusTripID: true,
+                DispatchedAt: true,
+                CompletedAt: true,
+                Sales: true,
+                ChangeFund: true,
               },
             },
-            quota_Policy: {
+            QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 Fixed: {
