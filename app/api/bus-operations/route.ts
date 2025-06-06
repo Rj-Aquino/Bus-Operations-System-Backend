@@ -45,6 +45,12 @@ const getHandler = async (request: NextRequest) => {
         Self_Conductor: true,
         IsDeleted: true,
         Status: true,
+        Route: {
+          select: {
+            RouteID: true,
+            RouteName: true,
+          }
+        },
         RegularBusAssignment: {
           select: {
             DriverID: true,
