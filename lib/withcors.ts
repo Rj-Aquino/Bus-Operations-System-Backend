@@ -5,6 +5,7 @@ const allowedOrigins = [
   'http://192.168.254.106:3000',
   'https://bus-operations-system-lemon.vercel.app',
   'http://192.168.1.4:3000',
+  'https://boms.agilabuscorp.me/bus-assignment'
 ];
 
 export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {
