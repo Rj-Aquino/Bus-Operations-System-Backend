@@ -32,6 +32,8 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
 
   '/api/stops': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER], // GET, POST
   '/api/stops/:id': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER], // PUT, PATCH
+
+  '/api/ticket-types': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER, ROLES.DISPATCHER], // GET
 };
 
 // Function to get allowed roles for a given path

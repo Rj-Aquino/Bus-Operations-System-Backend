@@ -44,6 +44,12 @@ const getVerifiedAssignments = async (request: NextRequest) => {
         Self_Conductor: true,
         IsDeleted: true,
         Status: true,
+        Route: { // <-- Add this block
+          select: {
+            RouteID: true,
+            RouteName: true,
+          },
+        },
         RegularBusAssignment: {
           select: {
             DriverID: true,
