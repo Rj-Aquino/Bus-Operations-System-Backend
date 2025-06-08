@@ -61,103 +61,97 @@ const putHandler = async (request: NextRequest) => {
       }
     }
 
+    // Fetch current assignment for logic
+    const currentAssignment = await prisma.busAssignment.findUnique({
+      where: { BusAssignmentID },
+      include: { RegularBusAssignment: true },
+    });
+
+    if (!currentAssignment) {
+      return NextResponse.json({ error: 'BusAssignment not found' }, { status: 404 });
+    }
+
+    // Determine the new booleans (from body or current)
+    const newBooleans = booleanFields.map(field =>
+      Object.prototype.hasOwnProperty.call(busAssignmentFields, field)
+        ? !!busAssignmentFields[field]
+        : !!currentAssignment[field]
+    );
+
+    // --- REVISED LOGIC ---
+    // If all booleans are true and status is NotStarted, InOperation, or Completed, do nothing (allow status)
+    // If any boolean is false and status is NotStarted, InOperation, or Completed, force status to NotReady
+    const requestedStatus = busAssignmentFields.Status || currentAssignment.Status;
+    const allTrue = newBooleans.every(val => val === true);
+    const isTargetStatus = [
+      BusOperationStatus.NotStarted,
+      BusOperationStatus.InOperation,
+      BusOperationStatus.Completed,
+    ].includes(requestedStatus as BusOperationStatus);
+
+    if (isTargetStatus) {
+      if (!allTrue) {
+        busAssignmentFields.Status = BusOperationStatus.NotReady;
+      }
+      // else: all true, keep requested status
+    }
+
+    // If resetting from Completed (optional: if body.ResetCompleted is true)
+    if (body.ResetCompleted) {
+      booleanFields.forEach(field => (busAssignmentFields[field] = false as any));
+      busAssignmentFields.Status = BusOperationStatus.NotReady;
+    }
+
     const updatedBusAssignment = await prisma.busAssignment.update({
       where: { BusAssignmentID },
       data: busAssignmentFields,
       include: { RegularBusAssignment: true },
     });
 
-    // Handle BusTrips update or creation if present in body
-    if (
-      updatedBusAssignment.RegularBusAssignment &&
-      Array.isArray(body.BusTrips)
-    ) {
-      for (const trip of body.BusTrips) {
-        const {
-          BusTripID,
-          DispatchedAt,
-          CompletedAt,
-          Sales,
-          ChangeFund,
-        } = trip;
+    // --- Handle LatestBusTripID management ---
+    if (updatedBusAssignment.RegularBusAssignment) {
+      const regID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
 
-        const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
-
-        if (BusTripID) {
-          // Try to update existing BusTrip
-          const existingBusTrip = await prisma.busTrip.findFirst({
-            where: {
-              BusTripID,
-              RegularBusAssignmentID: regularBusAssignmentID,
-            },
-          });
-
-          if (existingBusTrip) {
-            await prisma.busTrip.update({
-              where: { BusTripID },
-              data: {
-                DispatchedAt: DispatchedAt ? new Date(DispatchedAt) : null,
-                CompletedAt: CompletedAt ? new Date(CompletedAt) : null,
-                Sales: typeof Sales === 'number' ? Sales : null,
-                ChangeFund: typeof ChangeFund === 'number' ? ChangeFund : null,
-              },
-            });
-            continue;
-          }
-        }
-
-        // If no BusTripID or not found, create a new BusTrip
-        await prisma.busTrip.create({
-          data: {
-            BusTripID: BusTripID || await generateFormattedID('BT'),
-            RegularBusAssignmentID: regularBusAssignmentID,
-            DispatchedAt: DispatchedAt ? new Date(DispatchedAt) : null,
-            CompletedAt: CompletedAt ? new Date(CompletedAt) : null,
-            Sales: typeof Sales === 'number' ? Sales : null,
-            ChangeFund: typeof ChangeFund === 'number' ? ChangeFund : null,
-          },
+      // NotStarted or NotReady: LatestBusTripID must be null
+      if (
+        updatedBusAssignment.Status === BusOperationStatus.NotStarted ||
+        updatedBusAssignment.Status === BusOperationStatus.NotReady
+      ) {
+        await prisma.regularBusAssignment.update({
+          where: { RegularBusAssignmentID: regID },
+          data: { LatestBusTripID: null },
         });
       }
-    }
-
-    if (Array.isArray(body.TicketBusAssignments)) {
-      for (const ticket of body.TicketBusAssignments) {
-        const { TicketTypeID, StartingIDNumber, EndingIDNumber } = ticket;
-
-        if (
-          !TicketTypeID ||
-          typeof StartingIDNumber !== 'number' ||
-          typeof EndingIDNumber !== 'number' ||
-          StartingIDNumber < 0 ||
-          EndingIDNumber < StartingIDNumber
-        ) {
-          return NextResponse.json({
-            error: 'Valid TicketTypeID, StartingIDNumber and EndingIDNumber are required',
-          }, { status: 400 });
+      // Completed or InOperation: must have a value
+      else if (
+        updatedBusAssignment.Status === BusOperationStatus.Completed ||
+        updatedBusAssignment.Status === BusOperationStatus.InOperation
+      ) {
+        // If not set, create a BusTrip and set as latest
+        const latestBusTripID = updatedBusAssignment.RegularBusAssignment.LatestBusTripID;
+        if (!latestBusTripID) {
+          const newBusTripID = await generateFormattedID('BT');
+          await prisma.busTrip.create({
+            data: {
+              BusTripID: newBusTripID,
+              RegularBusAssignmentID: regID,
+              DispatchedAt: new Date(),
+              CompletedAt: updatedBusAssignment.Status === BusOperationStatus.Completed ? new Date() : null,
+              Sales: null,
+              ChangeFund: null,
+            },
+          });
+          await prisma.regularBusAssignment.update({
+            where: { RegularBusAssignmentID: regID },
+            data: { LatestBusTripID: newBusTripID },
+          });
         }
-
-        const existing = await prisma.ticketBusAssignment.findFirst({
-          where: {
-            BusAssignmentID,
-            TicketTypeID,
-          },
-        });
-
-        if (!existing) {
-          return NextResponse.json({
-            error: `No TicketBusAssignment found for TicketTypeID: ${TicketTypeID} under this BusAssignment`,
-          }, { status: 404 });
-        }
-
-        await prisma.ticketBusAssignment.updateMany({
-          where: {
-            BusAssignmentID,
-            TicketTypeID,
-          },
-          data: {
-            StartingIDNumber,
-            EndingIDNumber,
-          },
+      }
+      // If resetting Completed, set LatestBusTripID to null
+      if (body.ResetCompleted) {
+        await prisma.regularBusAssignment.update({
+          where: { RegularBusAssignmentID: regID },
+          data: { LatestBusTripID: null },
         });
       }
     }
@@ -182,24 +176,28 @@ const putHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
-            BusTrips: { 
+            LatestBusTripID: true,
+            LatestBusTrip: {
               select: {
                 BusTripID: true,
                 DispatchedAt: true,
                 CompletedAt: true,
                 Sales: true,
                 ChangeFund: true,
+                TicketBusTrips: {
+                  select: {
+                    TicketBusTripID: true,
+                    StartingIDNumber: true,
+                    EndingIDNumber: true,
+                    TicketType: {
+                      select: {
+                        TicketTypeID: true,
+                        Value: true,
+                      },
+                    },
+                  },
+                },
               },
-            },
-          },
-        },
-        TicketBusAssignments: {
-          select: {
-            TicketBusAssignmentID: true,
-            StartingIDNumber: true,
-            EndingIDNumber: true,
-            TicketType: {
-              select: { Value: true },
             },
           },
         },

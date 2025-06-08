@@ -27,6 +27,7 @@ const getHandler = async (request: NextRequest) => {
       whereClause.Status = status as BusOperationStatus;
     }
 
+    // Fetch all bus assignments with their RegularBusAssignment and only the LatestBusTrip
     const busAssignments = await prisma.busAssignment.findMany({
       where: whereClause,
       select: {
@@ -49,13 +50,27 @@ const getHandler = async (request: NextRequest) => {
           select: {
             DriverID: true,
             ConductorID: true,
-            BusTrips: {
+            LatestBusTripID: true,
+            LatestBusTrip: {
               select: {
                 BusTripID: true,
                 DispatchedAt: true,
                 CompletedAt: true,
                 Sales: true,
                 ChangeFund: true,
+                TicketBusTrips: {
+                  select: {
+                    TicketBusTripID: true,
+                    StartingIDNumber: true,
+                    EndingIDNumber: true,
+                    TicketType: {
+                      select: {
+                        TicketTypeID: true,
+                        Value: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             QuotaPolicies: {
@@ -75,23 +90,29 @@ const getHandler = async (request: NextRequest) => {
             },
           },
         },
-        TicketBusAssignments: {
-          select: {
-            TicketBusAssignmentID: true,
-            StartingIDNumber: true,
-            EndingIDNumber: true,
-            TicketType: {
-              select: {
-                TicketTypeID: true,
-                Value: true,
-              },
-            },
-          },
-        },
       },
     });
 
-    return NextResponse.json(busAssignments);
+    // Remove LatestBusTrip if LatestBusTripID is null
+    const result = busAssignments.map((assignment) => {
+      if (
+        assignment.RegularBusAssignment &&
+        assignment.RegularBusAssignment.LatestBusTripID === null
+      ) {
+        // Remove LatestBusTrip from the response
+        const { LatestBusTrip, ...rest } = assignment.RegularBusAssignment;
+        return {
+          ...assignment,
+          RegularBusAssignment: {
+            ...rest,
+            LatestBusTrip: undefined,
+          },
+        };
+      }
+      return assignment;
+    });
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching bus assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch bus assignments' }, { status: 500 });

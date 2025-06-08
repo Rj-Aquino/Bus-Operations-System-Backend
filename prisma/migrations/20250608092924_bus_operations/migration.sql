@@ -60,25 +60,6 @@ CREATE TABLE "RouteStop" (
 );
 
 -- CreateTable
-CREATE TABLE "Ticket_Type" (
-    "TicketTypeID" TEXT NOT NULL,
-    "Value" DOUBLE PRECISION NOT NULL,
-
-    CONSTRAINT "Ticket_Type_pkey" PRIMARY KEY ("TicketTypeID")
-);
-
--- CreateTable
-CREATE TABLE "TicketBusAssignment" (
-    "TicketBusAssignmentID" TEXT NOT NULL,
-    "BusAssignmentID" TEXT NOT NULL,
-    "TicketTypeID" TEXT NOT NULL,
-    "StartingIDNumber" INTEGER NOT NULL,
-    "EndingIDNumber" INTEGER NOT NULL,
-
-    CONSTRAINT "TicketBusAssignment_pkey" PRIMARY KEY ("TicketBusAssignmentID")
-);
-
--- CreateTable
 CREATE TABLE "BusAssignment" (
     "BusAssignmentID" TEXT NOT NULL,
     "BusID" TEXT NOT NULL,
@@ -106,6 +87,7 @@ CREATE TABLE "RegularBusAssignment" (
     "RegularBusAssignmentID" TEXT NOT NULL,
     "DriverID" TEXT NOT NULL,
     "ConductorID" TEXT NOT NULL,
+    "LatestBusTripID" TEXT,
 
     CONSTRAINT "RegularBusAssignment_pkey" PRIMARY KEY ("RegularBusAssignmentID")
 );
@@ -122,11 +104,33 @@ CREATE TABLE "BusTrip" (
     CONSTRAINT "BusTrip_pkey" PRIMARY KEY ("BusTripID")
 );
 
+-- CreateTable
+CREATE TABLE "Ticket_Type" (
+    "TicketTypeID" TEXT NOT NULL,
+    "Value" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "Ticket_Type_pkey" PRIMARY KEY ("TicketTypeID")
+);
+
+-- CreateTable
+CREATE TABLE "TicketBusTripAssignment" (
+    "TicketBusTripID" TEXT NOT NULL,
+    "BusTripID" TEXT NOT NULL,
+    "TicketTypeID" TEXT NOT NULL,
+    "StartingIDNumber" INTEGER NOT NULL,
+    "EndingIDNumber" INTEGER NOT NULL,
+
+    CONSTRAINT "TicketBusTripAssignment_pkey" PRIMARY KEY ("TicketBusTripID")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "RouteStop_RouteID_StopID_key" ON "RouteStop"("RouteID", "StopID");
 
 -- CreateIndex
 CREATE INDEX "BusAssignment_BusID_idx" ON "BusAssignment"("BusID");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RegularBusAssignment_LatestBusTripID_key" ON "RegularBusAssignment"("LatestBusTripID");
 
 -- CreateIndex
 CREATE INDEX "RegularBusAssignment_DriverID_idx" ON "RegularBusAssignment"("DriverID");
@@ -156,16 +160,19 @@ ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_RouteID_fkey" FOREIGN KEY ("Ro
 ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_StopID_fkey" FOREIGN KEY ("StopID") REFERENCES "Stop"("StopID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TicketBusAssignment" ADD CONSTRAINT "TicketBusAssignment_BusAssignmentID_fkey" FOREIGN KEY ("BusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TicketBusAssignment" ADD CONSTRAINT "TicketBusAssignment_TicketTypeID_fkey" FOREIGN KEY ("TicketTypeID") REFERENCES "Ticket_Type"("TicketTypeID") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN KEY ("RouteID") REFERENCES "Route"("RouteID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_LatestBusTripID_fkey" FOREIGN KEY ("LatestBusTripID") REFERENCES "BusTrip"("BusTripID") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "BusTrip" ADD CONSTRAINT "BusTrip_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TicketBusTripAssignment" ADD CONSTRAINT "TicketBusTripAssignment_BusTripID_fkey" FOREIGN KEY ("BusTripID") REFERENCES "BusTrip"("BusTripID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TicketBusTripAssignment" ADD CONSTRAINT "TicketBusTripAssignment_TicketTypeID_fkey" FOREIGN KEY ("TicketTypeID") REFERENCES "Ticket_Type"("TicketTypeID") ON DELETE RESTRICT ON UPDATE CASCADE;

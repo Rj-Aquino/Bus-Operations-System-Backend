@@ -75,27 +75,6 @@ enum BusOperationStatus {
   Completed
 }
 
-model TicketType {
-  TicketTypeID           String                @id
-  Value                  Float
-  TicketBusAssignments   TicketBusAssignment[]
-
-  @@map("Ticket_Type")
-}
-
-model TicketBusAssignment {
-  TicketBusAssignmentID  String                @id
-  BusAssignmentID        String
-  TicketTypeID           String
-  StartingIDNumber       Int
-  EndingIDNumber         Int
-
-  BusAssignment          BusAssignment         @relation(fields: [BusAssignmentID], references: [BusAssignmentID])
-  TicketType             TicketType            @relation(fields: [TicketTypeID], references: [TicketTypeID])
-
-  @@map("TicketBusAssignment")
-}
-
 model BusAssignment {
   BusAssignmentID String @id
   BusID           String
@@ -117,8 +96,7 @@ model BusAssignment {
 
   Route                Route                 @relation(fields: [RouteID], references: [RouteID])
   RegularBusAssignment RegularBusAssignment?
-  TicketBusAssignments   TicketBusAssignment[]
-
+  
   @@index([BusID])
 }
 
@@ -130,6 +108,9 @@ model RegularBusAssignment {
 
   QuotaPolicies Quota_Policy[]
   BusTrips BusTrip[] 
+
+  LatestBusTripID String?  @unique
+  LatestBusTrip   BusTrip? @relation("LatestBusTrip", fields: [LatestBusTripID], references: [BusTripID])
 
   @@index([DriverID])
   @@index([ConductorID])
@@ -144,4 +125,28 @@ model BusTrip {
   ChangeFund              Float?
 
   regularBusAssignment    RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
+  TicketBusTrips TicketBusTrip[] 
+
+  LatestForAssignment     RegularBusAssignment? @relation("LatestBusTrip")
+}
+
+model TicketType {
+  TicketTypeID           String   @id
+  Value                  Float
+  TicketBusTrips TicketBusTrip[]
+
+  @@map("Ticket_Type")
+}
+
+model TicketBusTrip {
+  TicketBusTripID String   @id
+  BusTripID                 String
+  TicketTypeID              String
+  StartingIDNumber          Int
+  EndingIDNumber            Int
+
+  BusTrip                   BusTrip   @relation(fields: [BusTripID], references: [BusTripID])
+  TicketType                TicketType @relation(fields: [TicketTypeID], references: [TicketTypeID])
+
+  @@map("TicketBusTripAssignment")
 }
