@@ -92,7 +92,7 @@ model BusAssignment {
   Self_Driver     Boolean @default(false)
   Self_Conductor  Boolean @default(false)
   IsDeleted       Boolean @default(false)
-  Status          BusOperationStatus @default(NotStarted)
+  Status          BusOperationStatus @default(NotReady)
 
   Route                Route                 @relation(fields: [RouteID], references: [RouteID])
   RegularBusAssignment RegularBusAssignment?

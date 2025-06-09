@@ -80,6 +80,12 @@ const postHandler = async (request: NextRequest) => {
     const data = await request.json();
     console.log('Received data (POST /bus-assignment):', data);
 
+    // Prevent same Driver and Conductor
+    const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id?.split('-')[1]);
+    if (driverSuffix === conductorSuffix) {
+      return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
+    }
+
     // TODO: Add validation for required fields here (BusID, RouteID, DriverID, etc.)
     // Also validate data.QuotaPolicies is an array with at least one element
 
@@ -93,6 +99,7 @@ const postHandler = async (request: NextRequest) => {
           BusID: data.BusID,
           RouteID: data.RouteID,
           AssignmentDate: data.AssignmentDate ? new Date(data.AssignmentDate) : new Date(),
+          Status: "NotReady", // Default Not Ready
           RegularBusAssignment: {
             create: {
               DriverID: data.DriverID,
