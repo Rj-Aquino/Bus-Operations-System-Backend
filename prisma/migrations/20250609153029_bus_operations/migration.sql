@@ -77,7 +77,7 @@ CREATE TABLE "BusAssignment" (
     "Self_Driver" BOOLEAN NOT NULL DEFAULT false,
     "Self_Conductor" BOOLEAN NOT NULL DEFAULT false,
     "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
-    "Status" "BusOperationStatus" NOT NULL DEFAULT 'NotStarted',
+    "Status" "BusOperationStatus" NOT NULL DEFAULT 'NotReady',
 
     CONSTRAINT "BusAssignment_pkey" PRIMARY KEY ("BusAssignmentID")
 );
