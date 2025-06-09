@@ -33,7 +33,7 @@ const putHandler = async (request: NextRequest) => {
         RegularBusAssignment: {
           select: {
             RegularBusAssignmentID: true,
-            quota_Policy: { select: { QuotaPolicyID: true } },
+            QuotaPolicies: { select: { QuotaPolicyID: true } },
           },
         },
       },
@@ -68,7 +68,7 @@ const putHandler = async (request: NextRequest) => {
             RegularBusAssignmentID: true,
             DriverID: true,
             ConductorID: true,
-            quota_Policy: {
+            QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 Fixed: { select: { Quota: true } },
@@ -151,7 +151,7 @@ const putHandler = async (request: NextRequest) => {
           select: {
             DriverID: true,
             ConductorID: true,
-            quota_Policy: {
+            QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 StartDate: true,

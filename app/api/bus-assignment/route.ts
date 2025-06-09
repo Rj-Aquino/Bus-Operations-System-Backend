@@ -36,9 +36,11 @@ const gethandler = async (request: NextRequest) => {
         RegularBusAssignmentID: true,
         DriverID: true,
         ConductorID: true,
-        quota_Policy: {
+        QuotaPolicies: {
           select: {
             QuotaPolicyID: true,
+            StartDate: true,
+            EndDate: true,
             Fixed: { select: { Quota: true } },
             Percentage: { select: { Percentage: true } },
           },
@@ -68,7 +70,6 @@ const gethandler = async (request: NextRequest) => {
   }
 };
 
-
 const postHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
@@ -77,14 +78,16 @@ const postHandler = async (request: NextRequest) => {
 
   try {
     const data = await request.json();
+    console.log('Received data (POST /bus-assignment):', data);
 
     // TODO: Add validation for required fields here (BusID, RouteID, DriverID, etc.)
-    // Also validate data.QuotaPolicy is an array with at least one element
+    // Also validate data.QuotaPolicies is an array with at least one element
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create BusAssignment and RegularBusAssignment
-      const busAssignmentID = await generateFormattedID('BA');
-      const busAssignment = await tx.busAssignment.create({
+    const busAssignmentID = generateFormattedID('BA');
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Create BusAssignment with RegularBusAssignment (1:1 via ID)
+      await tx.busAssignment.create({
         data: {
           BusAssignmentID: busAssignmentID,
           BusID: data.BusID,
@@ -97,79 +100,65 @@ const postHandler = async (request: NextRequest) => {
             },
           },
         },
-        select: {
-          BusAssignmentID: true,
-          AssignmentDate: true,
-          RegularBusAssignment: {
-            select: {
-              RegularBusAssignmentID: true,
-              DriverID: true,
-              ConductorID: true,
+      });
+
+      // 2. Create all QuotaPolicies for this RegularBusAssignment
+      for (const qp of data.QuotaPolicy) {
+        const quotaPolicyID = generateFormattedID('QP');
+        const quotaPolicyData: any = {
+          QuotaPolicyID: quotaPolicyID,
+          RegularBusAssignmentID: busAssignmentID,
+          ...(qp.startDate && { StartDate: new Date(qp.startDate) }),
+          ...(qp.endDate && { EndDate: new Date(qp.endDate) }),
+        };
+
+        if (qp.type && qp.type.toUpperCase() === 'FIXED') {
+          quotaPolicyData.Fixed = {
+            create: {
+              Quota: qp.value,
             },
-          },
-        },
-      });
+          };
+        } else if (qp.type && qp.type.toUpperCase() === 'PERCENTAGE') {
+          quotaPolicyData.Percentage = {
+            create: {
+              Percentage: qp.value,
+            },
+          };
+        }
 
-      const regularBusAssignmentID = busAssignment.RegularBusAssignment?.RegularBusAssignmentID;
-      if (!regularBusAssignmentID) {
-        throw new Error('Failed to create RegularBusAssignment');
+        await tx.quota_Policy.create({
+          data: quotaPolicyData,
+        });
       }
+    }, { timeout: 10_000 });
 
-      // 2. Create Quota_Policy with nested Fixed or Percentage
-      const quotaPolicyID = await generateFormattedID('QP');
-
-      const quotaPolicyCreateData: any = {
-        QuotaPolicyID: quotaPolicyID,
-        RegularBusAssignmentID: regularBusAssignmentID,
-        ...(data.QuotaPolicy[0].startDate && { StartDate: new Date(data.QuotaPolicy[0].startDate) }),
-        ...(data.QuotaPolicy[0].endDate && { EndDate: new Date(data.QuotaPolicy[0].endDate) }),
-      };
-
-      if (data.QuotaPolicy[0].type.toUpperCase() === 'FIXED') {
-      quotaPolicyCreateData.Fixed = {
-        create: {
-          Quota: data.QuotaPolicy[0].value,
-        },
-      };
-    } else {
-      quotaPolicyCreateData.Percentage = {
-        create: {
-          Percentage: data.QuotaPolicy[0].value,
-        },
-      };
-    }
-
-      await tx.quota_Policy.create({
-        data: quotaPolicyCreateData,
-      });
-
-      // 3. Fetch the full assignment with quota policy for response
-      return tx.busAssignment.findUnique({
-        where: { BusAssignmentID: busAssignmentID },
-        select: {
-          BusAssignmentID: true,
-          AssignmentDate: true,
-          RegularBusAssignment: {
-            select: {
-              DriverID: true,
-              ConductorID: true,
-              quota_Policy: {
-                select: {
-                  QuotaPolicyID: true,
-                  StartDate: true,
-                  EndDate: true,
-                  Fixed: { select: { Quota: true } },
-                  Percentage: { select: { Percentage: true } },
-                },
+    // 3. Fetch result after transaction
+    const result = await prisma.busAssignment.findUnique({
+      where: { BusAssignmentID: busAssignmentID },
+      select: {
+        BusAssignmentID: true,
+        AssignmentDate: true,
+        RegularBusAssignment: {
+          select: {
+            DriverID: true,
+            ConductorID: true,
+            QuotaPolicies: {
+              select: {
+                QuotaPolicyID: true,
+                StartDate: true,
+                EndDate: true,
+                Fixed: { select: { Quota: true } },
+                Percentage: { select: { Percentage: true } },
               },
             },
           },
         },
-      });
+      },
     });
-    
+
     await redis.del('regular_bus_assignments');
     return NextResponse.json(result, { status: 201 });
+
   } catch (error) {
     console.error('CREATE_ASSIGNMENT_ERROR:', error);
     return NextResponse.json(

@@ -44,18 +44,40 @@ const getVerifiedAssignments = async (request: NextRequest) => {
         Self_Conductor: true,
         IsDeleted: true,
         Status: true,
+        Route: { // <-- Add this block
+          select: {
+            RouteID: true,
+            RouteName: true,
+          },
+        },
         RegularBusAssignment: {
           select: {
             DriverID: true,
             ConductorID: true,
-            RevenueDetails: { // <-- updated: fetch all revenue details for this assignment
+            LatestBusTripID: true,
+            LatestBusTrip: {
               select: {
-                RevenueDetailID: true,
-                TripRevenue: true,
-                Change: true,
+                BusTripID: true,
+                DispatchedAt: true,
+                CompletedAt: true,
+                Sales: true,
+                ChangeFund: true,
+                TicketBusTrips: {
+                  select: {
+                    TicketBusTripID: true,
+                    StartingIDNumber: true,
+                    EndingIDNumber: true,
+                    TicketType: {
+                      select: {
+                        TicketTypeID: true,
+                        Value: true,
+                      },
+                    },
+                  },
+                },
               },
             },
-            quota_Policy: {
+            QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 Fixed: {
@@ -72,23 +94,28 @@ const getVerifiedAssignments = async (request: NextRequest) => {
             },
           },
         },
-        TicketBusAssignments: {
-          select: {
-            TicketBusAssignmentID: true,
-            StartingIDNumber: true,
-            EndingIDNumber: true,
-            TicketType: {
-              select: {
-                TicketTypeID: true,
-                Value: true,
-              },
-            },
-          },
-        },
       },
     });
 
-    return NextResponse.json(verifiedAssignments);
+    // Remove LatestBusTrip if LatestBusTripID is null
+    const result = verifiedAssignments.map((assignment) => {
+      if (
+        assignment.RegularBusAssignment &&
+        assignment.RegularBusAssignment.LatestBusTripID === null
+      ) {
+        const { LatestBusTrip, ...rest } = assignment.RegularBusAssignment;
+        return {
+          ...assignment,
+          RegularBusAssignment: {
+            ...rest,
+            LatestBusTrip: undefined,
+          },
+        };
+      }
+      return assignment;
+    });
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching verified assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch verified assignments' }, { status: 500 });

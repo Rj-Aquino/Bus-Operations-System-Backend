@@ -61,95 +61,275 @@ const putHandler = async (request: NextRequest) => {
       }
     }
 
+    // Fetch current assignment for logic
+    const currentAssignment = await prisma.busAssignment.findUnique({
+      where: { BusAssignmentID },
+      include: { RegularBusAssignment: true },
+    });
+
+    if (!currentAssignment) {
+      return NextResponse.json({ error: 'BusAssignment not found' }, { status: 404 });
+    }
+
+    // Determine the new booleans (from body or current)
+    const newBooleans = booleanFields.map(field =>
+      Object.prototype.hasOwnProperty.call(busAssignmentFields, field)
+        ? !!busAssignmentFields[field]
+        : !!currentAssignment[field]
+    );
+
+    // --- REVISED LOGIC ---
+    const requestedStatus = busAssignmentFields.Status || currentAssignment.Status;
+    const allTrue = newBooleans.every(val => val === true);
+    const isTargetStatus = [
+      BusOperationStatus.NotStarted,
+      BusOperationStatus.InOperation,
+      BusOperationStatus.Completed,
+    ].includes(requestedStatus as BusOperationStatus);
+
+    if (isTargetStatus) {
+      if (!allTrue) {
+        busAssignmentFields.Status = BusOperationStatus.NotReady;
+      }
+    }
+
+    // If resetting from Completed (optional: if body.ResetCompleted is true)
+    if (body.ResetCompleted) {
+      booleanFields.forEach(field => (busAssignmentFields[field] = false as any));
+      busAssignmentFields.Status = BusOperationStatus.NotReady;
+
+      // Update assignment and clear LatestBusTripID, then return early
+      const updatedBusAssignment = await prisma.busAssignment.update({
+        where: { BusAssignmentID },
+        data: busAssignmentFields,
+        include: { RegularBusAssignment: true },
+      });
+
+      if (updatedBusAssignment.RegularBusAssignment) {
+        await prisma.regularBusAssignment.update({
+          where: { RegularBusAssignmentID: updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID },
+          data: { LatestBusTripID: null },
+        });
+      }
+
+      const updatedFullRecord = await prisma.busAssignment.findUnique({
+        where: { BusAssignmentID },
+        select: {
+          BusAssignmentID: true,
+          BusID: true,
+          Battery: true,
+          Lights: true,
+          Oil: true,
+          Water: true,
+          Break: true,
+          Air: true,
+          Gas: true,
+          Engine: true,
+          TireCondition: true,
+          Self_Driver: true,
+          Self_Conductor: true,
+          IsDeleted: true,
+          Status: true,
+          RegularBusAssignment: {
+            select: {
+              LatestBusTripID: true,
+              LatestBusTrip: {
+                select: {
+                  BusTripID: true,
+                  DispatchedAt: true,
+                  CompletedAt: true,
+                  Sales: true,
+                  ChangeFund: true,
+                  TicketBusTrips: {
+                    select: {
+                      TicketBusTripID: true,
+                      StartingIDNumber: true,
+                      EndingIDNumber: true,
+                      TicketType: {
+                        select: {
+                          TicketTypeID: true,
+                          Value: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return NextResponse.json(updatedFullRecord, { status: 200 });
+    }
+
     const updatedBusAssignment = await prisma.busAssignment.update({
       where: { BusAssignmentID },
       data: busAssignmentFields,
       include: { RegularBusAssignment: true },
     });
 
-    // Handle RevenueDetail update or creation if Change or TripRevenue is present
-    if (
-      updatedBusAssignment.RegularBusAssignment &&
-      ('Change' in body || 'TripRevenue' in body)
-    ) {
-      const revenueDetailData: any = {};
-      if ('Change' in body) revenueDetailData.Change = Number(body.Change);
-      if ('TripRevenue' in body) revenueDetailData.TripRevenue = Number(body.TripRevenue);
+    // --- Handle LatestBusTripID management ---
+    let latestBusTripID: string | null = updatedBusAssignment.RegularBusAssignment?.LatestBusTripID ?? null;
+    const regID = updatedBusAssignment.RegularBusAssignment?.RegularBusAssignmentID;
 
-      const regularBusAssignmentID = updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID;
-      const { RevenueDetailID } = body;
-
-      let shouldUpdate = false;
-      const revenueDetailIdToUpdate = RevenueDetailID;
-
-      if (RevenueDetailID) {
-        // Check if this RevenueDetail exists for this assignment
-        const existingRevenueDetail = await prisma.revenueDetail.findFirst({
-          where: {
-            RevenueDetailID,
-            RegularBusAssignmentID: regularBusAssignmentID,
-          },
-        });
-        if (existingRevenueDetail) {
-          shouldUpdate = true;
-        }
+    // 1. If LatestBusTripID is in the body, set it on the RegularBusAssignment and use it
+    if ('LatestBusTripID' in body && body.LatestBusTripID) {
+      // Check if the given BusTripID exists in the database
+      const existingBusTrip = await prisma.busTrip.findUnique({
+        where: { BusTripID: body.LatestBusTripID }
+      });
+      if (!existingBusTrip) {
+        return NextResponse.json({ error: 'Provided LatestBusTripID does not exist.' }, { status: 400 });
       }
-
-      if (shouldUpdate) {
-        await prisma.revenueDetail.update({
-          where: { RevenueDetailID: revenueDetailIdToUpdate },
-          data: revenueDetailData,
-        });
-      } else {
-        await prisma.revenueDetail.create({
-          data: {
-            ...revenueDetailData,
-            RegularBusAssignmentID: regularBusAssignmentID,
-            RevenueDetailID: await generateFormattedID('RVD'),
-          },
-        });
-      }
+      await prisma.regularBusAssignment.update({
+        where: { RegularBusAssignmentID: regID },
+        data: { LatestBusTripID: body.LatestBusTripID },
+      });
+      latestBusTripID = body.LatestBusTripID;
     }
 
-    if (Array.isArray(body.TicketBusAssignments)) {
-      for (const ticket of body.TicketBusAssignments) {
-        const { TicketTypeID, StartingIDNumber, EndingIDNumber } = ticket;
+    // 2. If not in body but exists in record, just use it (already set above)
 
-        if (
-          !TicketTypeID ||
-          typeof StartingIDNumber !== 'number' ||
-          typeof EndingIDNumber !== 'number' ||
-          StartingIDNumber < 0 ||
-          EndingIDNumber < StartingIDNumber
-        ) {
-          return NextResponse.json({
-            error: 'Valid TicketTypeID, StartingIDNumber and EndingIDNumber are required',
-          }, { status: 400 });
+    // 3. If not in body and record is null, create if all required fields are present
+    if (!latestBusTripID) {
+      const requiredFields = ['DispatchedAt', 'Sales', 'ChangeFund'];
+      const missingFields = requiredFields.filter(f => !(f in body));
+      if (
+        'DispatchedAt' in body ||
+        'Sales' in body ||
+        'ChangeFund' in body ||
+        'CompletedAt' in body
+      ) {
+        if (missingFields.length > 0) {
+          return NextResponse.json({ error: `Missing required fields for BusTrip creation: ${missingFields.join(', ')}` }, { status: 400 });
         }
-
-        const existing = await prisma.ticketBusAssignment.findFirst({
-          where: {
-            BusAssignmentID,
-            TicketTypeID,
-          },
-        });
-
-        if (!existing) {
-          return NextResponse.json({
-            error: `No TicketBusAssignment found for TicketTypeID: ${TicketTypeID} under this BusAssignment`,
-          }, { status: 404 });
+        if (!regID) {
+          return NextResponse.json({ error: 'RegularBusAssignmentID is required to create a BusTrip.' }, { status: 400 });
         }
-
-        await prisma.ticketBusAssignment.updateMany({
-          where: {
-            BusAssignmentID,
-            TicketTypeID,
-          },
+        const newBusTripID = await generateFormattedID('BT');
+        await prisma.busTrip.create({
           data: {
-            StartingIDNumber,
-            EndingIDNumber,
+            BusTripID: newBusTripID,
+            RegularBusAssignmentID: regID,
+            DispatchedAt: new Date(body.DispatchedAt),
+            CompletedAt: 'CompletedAt' in body ? new Date(body.CompletedAt) : null,
+            Sales: body.Sales,
+            ChangeFund: body.ChangeFund,
           },
         });
+        await prisma.regularBusAssignment.update({
+          where: { RegularBusAssignmentID: regID },
+          data: { LatestBusTripID: newBusTripID },
+        });
+        latestBusTripID = newBusTripID;
+      }
+      // If no BusTrip fields are present, skip BusTrip creation (no error)
+    }
+
+    // --- Update BusTrip fields if provided ---
+    let targetBusTripID = latestBusTripID;
+    if ('LatestBusTripID' in body && body.LatestBusTripID) {
+      targetBusTripID = body.LatestBusTripID;
+    }
+
+    // Only show error if user tried to update BusTrip fields but no BusTrip exists
+    const hasAnyBusTripField =
+      'Sales' in body ||
+      'ChangeFund' in body ||
+      'DispatchedAt' in body ||
+      'CompletedAt' in body;
+
+    if (!targetBusTripID && hasAnyBusTripField) {
+      return NextResponse.json({ error: 'No valid BusTrip to update or create' }, { status: 400 });
+    }
+
+    const busTripUpdate: any = {};
+    if ('Sales' in body) busTripUpdate.Sales = body.Sales;
+    if ('ChangeFund' in body) busTripUpdate.ChangeFund = body.ChangeFund;
+    if ('DispatchedAt' in body) busTripUpdate.DispatchedAt = new Date(body.DispatchedAt);
+    if ('CompletedAt' in body) busTripUpdate.CompletedAt = body.CompletedAt ? new Date(body.CompletedAt) : null;
+
+    if (targetBusTripID && Object.keys(busTripUpdate).length > 0) {
+      await prisma.busTrip.update({
+        where: { BusTripID: targetBusTripID },
+        data: busTripUpdate,
+      });
+    }
+
+    // --- Update or create TicketBusTrips for this BusTrip ---
+    if (targetBusTripID && Array.isArray(body.TicketBusTrips)) {
+      const validTicketBusTripIDs = await prisma.ticketBusTrip.findMany({
+        where: { BusTripID: targetBusTripID },
+        select: { TicketBusTripID: true }
+      });
+      const validIDs = new Set(validTicketBusTripIDs.map(tbt => tbt.TicketBusTripID));
+
+      for (const tbt of body.TicketBusTrips) {
+        // If all fields are undefined/null, skip (do not error)
+        const allTicketFieldsNull =
+          (tbt.TicketBusTripID === undefined || tbt.TicketBusTripID === null) &&
+          (tbt.StartingIDNumber === undefined || tbt.StartingIDNumber === null) &&
+          (tbt.EndingIDNumber === undefined || tbt.EndingIDNumber === null) &&
+          (tbt.TicketTypeID === undefined || tbt.TicketTypeID === null);
+
+        if (allTicketFieldsNull) {
+          continue; // skip this entry
+        }
+
+        // Update existing TicketBusTrip
+        if (tbt.TicketBusTripID) {
+          if (validIDs.has(tbt.TicketBusTripID)) {
+            // TicketTypeID is required for update
+            if (!tbt.TicketTypeID) {
+              return NextResponse.json({ error: 'TicketTypeID is required to update a TicketBusTrip.' }, { status: 400 });
+            }
+            await prisma.ticketBusTrip.update({
+              where: { TicketBusTripID: tbt.TicketBusTripID },
+              data: {
+                TicketTypeID: tbt.TicketTypeID,
+                ...(tbt.StartingIDNumber !== undefined ? { StartingIDNumber: tbt.StartingIDNumber } : {}),
+                ...(tbt.EndingIDNumber !== undefined ? { EndingIDNumber: tbt.EndingIDNumber } : {}),
+              },
+            });
+          } else {
+            // TicketBusTripID provided but not valid for this trip
+            return NextResponse.json({ error: `TicketBusTripID ${tbt.TicketBusTripID} does not exist for this BusTrip.` }, { status: 400 });
+          }
+        }
+        // Create new TicketBusTrip
+        else {
+          // If any of the required fields are present, require all three
+          const hasAnyRequired =
+            tbt.StartingIDNumber !== undefined ||
+            tbt.EndingIDNumber !== undefined ||
+            tbt.TicketTypeID !== undefined;
+
+          if (hasAnyRequired) {
+            if (
+              tbt.StartingIDNumber === undefined ||
+              tbt.EndingIDNumber === undefined ||
+              !tbt.TicketTypeID
+            ) {
+              return NextResponse.json(
+                { error: 'StartingIDNumber, EndingIDNumber, and TicketTypeID are all required to create a TicketBusTrip.' },
+                { status: 400 }
+              );
+            }
+            // Create new TicketBusTrip for this BusTrip
+            const newTicketBusTripID = await generateFormattedID('TBT');
+            await prisma.ticketBusTrip.create({
+              data: {
+                TicketBusTripID: newTicketBusTripID,
+                BusTripID: targetBusTripID,
+                TicketTypeID: tbt.TicketTypeID,
+                StartingIDNumber: tbt.StartingIDNumber,
+                EndingIDNumber: tbt.EndingIDNumber,
+              },
+            });
+          }
+          // else: if none of the required fields are present, just skip (do not error)
+        }
       }
     }
 
@@ -173,29 +353,28 @@ const putHandler = async (request: NextRequest) => {
         Status: true,
         RegularBusAssignment: {
           select: {
-            RevenueDetails: {
+            LatestBusTripID: true,
+            LatestBusTrip: {
               select: {
-                RevenueDetailID: true,
-                TripRevenue: true,
-                Change: true,
+                BusTripID: true,
+                DispatchedAt: true,
+                CompletedAt: true,
+                Sales: true,
+                ChangeFund: true,
+                TicketBusTrips: {
+                  select: {
+                    TicketBusTripID: true,
+                    StartingIDNumber: true,
+                    EndingIDNumber: true,
+                    TicketType: {
+                      select: {
+                        TicketTypeID: true,
+                        Value: true,
+                      },
+                    },
+                  },
+                },
               },
-            },
-            quota_Policy: {
-              select: {
-                QuotaPolicyID: true,
-                Fixed: { select: { Quota: true } },
-                Percentage: { select: { Percentage: true } },
-              },
-            },
-          },
-        },
-        TicketBusAssignments: {
-          select: {
-            TicketBusAssignmentID: true,
-            StartingIDNumber: true,
-            EndingIDNumber: true,
-            TicketType: {
-              select: { Value: true },
             },
           },
         },
