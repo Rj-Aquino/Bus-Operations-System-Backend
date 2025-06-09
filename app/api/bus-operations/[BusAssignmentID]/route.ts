@@ -193,7 +193,7 @@ const putHandler = async (request: NextRequest) => {
 
     // 3. If not in body and record is null, create if all required fields are present
     if (!latestBusTripID) {
-      const requiredFields = ['DispatchedAt', 'Sales', 'ChangeFund'];
+      const requiredFields = ['ChangeFund'];
       const missingFields = requiredFields.filter(f => !(f in body));
       if (
         'DispatchedAt' in body ||
@@ -212,9 +212,9 @@ const putHandler = async (request: NextRequest) => {
           data: {
             BusTripID: newBusTripID,
             RegularBusAssignmentID: regID,
-            DispatchedAt: new Date(body.DispatchedAt),
-            CompletedAt: 'CompletedAt' in body ? new Date(body.CompletedAt) : null,
-            Sales: body.Sales,
+            DispatchedAt: 'DispatchedAt' in body && body.DispatchedAt ? new Date(body.DispatchedAt) : null,
+            CompletedAt: 'CompletedAt' in body && body.CompletedAt ? new Date(body.CompletedAt) : null,
+            Sales: 'Sales' in body ? body.Sales : null,
             ChangeFund: body.ChangeFund,
           },
         });
