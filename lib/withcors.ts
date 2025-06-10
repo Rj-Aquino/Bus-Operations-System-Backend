@@ -20,7 +20,10 @@ export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {
       'Content-Type': 'application/json',
     });
 
-    if (origin && allowedOrigins.includes(origin)) {
+    if (
+      origin &&
+      (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app'))
+    ) {
       headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Credentials', 'true');
     }
