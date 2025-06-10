@@ -28,10 +28,10 @@ const postHandler = async (request: NextRequest) => {
   const response = NextResponse.json({ token }, { status: 200 });
   response.cookies.set('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 60 * 60,
   });
 
   return response;
