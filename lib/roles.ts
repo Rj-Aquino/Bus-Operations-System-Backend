@@ -26,7 +26,7 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   '/api/quota-assignment': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER, ROLES.DISPATCHER], // GET, POST
   '/api/quota-assignment/:id': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER, ROLES.DISPATCHER], // PUT
 
-  '/api/route-management': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER], // GET, POST
+  '/api/route-management': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER, ROLES.DISPATCHER], // GET, POST
   '/api/route-management/full': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER], // GET
   '/api/route-management/:id': [ROLES.ADMIN, ROLES.OPERATIONAL_MANAGER], // PUT, PATCH
 
@@ -54,3 +54,4 @@ export const getAllowedRolesForRoute = (pathname: string): Role[] | undefined =>
 
   return dynamicMatch?.[1];
 };
+

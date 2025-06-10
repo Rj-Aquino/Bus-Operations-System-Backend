@@ -25,7 +25,16 @@ const postHandler = async (request: NextRequest) => {
     '1h'
   );
 
-  return NextResponse.json({ token }, { status: 200 });
+  const response = NextResponse.json({ token }, { status: 200 });
+  response.cookies.set('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60, // 1 hour
+  });
+
+  return response;
 };
 
 export const POST = withCors(postHandler);
