@@ -25,15 +25,24 @@ const postHandler = async (request: NextRequest) => {
     '1h'
   );
 
-  // Always use secure: true and sameSite: 'none' for deployment (cross-site, HTTPS)
+  // Detect if the request is from localhost or LAN for local dev
+  const origin = request.headers.get('origin');
+  const isLocal =
+    origin?.startsWith('http://localhost') ||
+    origin?.startsWith('http://127.0.0.1') ||
+    origin?.startsWith('http://192.168.') ||
+    origin?.startsWith('http://10.') ||
+    origin?.startsWith('http://172.');
+
   const response = new NextResponse(JSON.stringify({ token }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+
   response.cookies.set('token', token, {
     httpOnly: true,
-    secure: true, // Always true for deployment
-    sameSite: 'none', // Always none for cross-site cookies
+    secure: !isLocal, // false for local, true for deployed (HTTPS)
+    sameSite: isLocal ? 'lax' : 'none', // 'lax' for local, 'none' for deployed
     path: '/',
     maxAge: 60 * 60,
   });
