@@ -25,15 +25,18 @@ const postHandler = async (request: NextRequest) => {
     '1h'
   );
 
-  const response = NextResponse.json({ token }, { status: 200 });
+  const response = new NextResponse(JSON.stringify({ token }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
   response.cookies.set('token', token, {
     httpOnly: true,
-    secure: true,
-    sameSite: 'none',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
     maxAge: 60 * 60,
   });
-
+  
   return response;
 };
 
