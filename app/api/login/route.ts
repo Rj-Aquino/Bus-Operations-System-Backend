@@ -25,18 +25,19 @@ const postHandler = async (request: NextRequest) => {
     '1h'
   );
 
+  // Always use secure: true and sameSite: 'none' for deployment (cross-site, HTTPS)
   const response = new NextResponse(JSON.stringify({ token }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
   response.cookies.set('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: true, // Always true for deployment
+    sameSite: 'none', // Always none for cross-site cookies
     path: '/',
     maxAge: 60 * 60,
   });
-  
+
   return response;
 };
 
