@@ -259,12 +259,12 @@ const putHandler = async (request: NextRequest) => {
 
     // --- Update or create TicketBusTrips for this BusTrip ---
     if (targetBusTripID && Array.isArray(body.TicketBusTrips)) {
-      const validTicketBusTripIDs = await prisma.ticketBusTrip.findMany({
-        where: { BusTripID: targetBusTripID },
-        select: { TicketBusTripID: true }
+      // 1. Delete all existing TicketBusTrips for this BusTrip
+      await prisma.ticketBusTrip.deleteMany({
+        where: { BusTripID: targetBusTripID }
       });
-      const validIDs = new Set(validTicketBusTripIDs.map(tbt => tbt.TicketBusTripID));
 
+      // 2. Create new TicketBusTrips from the request
       for (const tbt of body.TicketBusTrips) {
         // If all fields are undefined/null, skip (do not error)
         const allTicketFieldsNull =
@@ -277,59 +277,39 @@ const putHandler = async (request: NextRequest) => {
           continue; // skip this entry
         }
 
-        // Update existing TicketBusTrip
-        if (tbt.TicketBusTripID) {
-          if (validIDs.has(tbt.TicketBusTripID)) {
-            // TicketTypeID is required for update
-            if (!tbt.TicketTypeID) {
-              return NextResponse.json({ error: 'TicketTypeID is required to update a TicketBusTrip.' }, { status: 400 });
-            }
-            await prisma.ticketBusTrip.update({
-              where: { TicketBusTripID: tbt.TicketBusTripID },
-              data: {
-                TicketTypeID: tbt.TicketTypeID,
-                ...(tbt.StartingIDNumber !== undefined ? { StartingIDNumber: tbt.StartingIDNumber } : {}),
-                ...(tbt.EndingIDNumber !== undefined ? { EndingIDNumber: tbt.EndingIDNumber } : {}),
-              },
-            });
-          } else {
-            // TicketBusTripID provided but not valid for this trip
-            return NextResponse.json({ error: `TicketBusTripID ${tbt.TicketBusTripID} does not exist for this BusTrip.` }, { status: 400 });
-          }
+        // Only require StartingIDNumber and TicketTypeID
+        if (
+          tbt.StartingIDNumber === undefined ||
+          !tbt.TicketTypeID
+        ) {
+          return NextResponse.json(
+            { error: 'StartingIDNumber and TicketTypeID are required to create a TicketBusTrip.' },
+            { status: 400 }
+          );
         }
-        // Create new TicketBusTrip
-        else {
-          // If any of the required fields are present, require all three
-          const hasAnyRequired =
-            tbt.StartingIDNumber !== undefined ||
-            tbt.EndingIDNumber !== undefined ||
-            tbt.TicketTypeID !== undefined;
 
-          if (hasAnyRequired) {
-            if (
-              tbt.StartingIDNumber === undefined ||
-              tbt.EndingIDNumber === undefined ||
-              !tbt.TicketTypeID
-            ) {
-              return NextResponse.json(
-                { error: 'StartingIDNumber, EndingIDNumber, and TicketTypeID are all required to create a TicketBusTrip.' },
-                { status: 400 }
-              );
-            }
-            // Create new TicketBusTrip for this BusTrip
-            const newTicketBusTripID = await generateFormattedID('TBT');
-            await prisma.ticketBusTrip.create({
-              data: {
-                TicketBusTripID: newTicketBusTripID,
-                BusTripID: targetBusTripID,
-                TicketTypeID: tbt.TicketTypeID,
-                StartingIDNumber: tbt.StartingIDNumber,
-                EndingIDNumber: tbt.EndingIDNumber,
-              },
-            });
-          }
-          // else: if none of the required fields are present, just skip (do not error)
-        }
+        const newTicketBusTripID = await generateFormattedID('TBT');
+        await prisma.ticketBusTrip.create({
+          data: {
+            TicketBusTripID: newTicketBusTripID,
+            BusTripID: targetBusTripID,
+            TicketTypeID: tbt.TicketTypeID,
+            StartingIDNumber: tbt.StartingIDNumber,
+            EndingIDNumber: tbt.EndingIDNumber ?? null,
+          },
+        });
+      }
+
+      // 3. Check readiness and ticket count
+      const ticketCount = await prisma.ticketBusTrip.count({
+        where: { BusTripID: targetBusTripID }
+      });
+
+      if (allTrue && ticketCount > 0) {
+        await prisma.busAssignment.update({
+          where: { BusAssignmentID },
+          data: { Status: BusOperationStatus.NotStarted }
+        });
       }
     }
 

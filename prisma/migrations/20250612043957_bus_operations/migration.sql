@@ -117,8 +117,8 @@ CREATE TABLE "TicketBusTripAssignment" (
     "TicketBusTripID" TEXT NOT NULL,
     "BusTripID" TEXT NOT NULL,
     "TicketTypeID" TEXT NOT NULL,
-    "StartingIDNumber" INTEGER NOT NULL,
-    "EndingIDNumber" INTEGER NOT NULL,
+    "StartingIDNumber" INTEGER,
+    "EndingIDNumber" INTEGER,
 
     CONSTRAINT "TicketBusTripAssignment_pkey" PRIMARY KEY ("TicketBusTripID")
 );

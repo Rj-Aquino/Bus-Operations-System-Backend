@@ -142,8 +142,8 @@ model TicketBusTrip {
   TicketBusTripID String   @id
   BusTripID                 String
   TicketTypeID              String
-  StartingIDNumber          Int
-  EndingIDNumber            Int
+  StartingIDNumber          Int?
+  EndingIDNumber            Int?
 
   BusTrip                   BusTrip   @relation(fields: [BusTripID], references: [BusTripID])
   TicketType                TicketType @relation(fields: [TicketTypeID], references: [TicketTypeID])
