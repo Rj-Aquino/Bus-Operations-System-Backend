@@ -11,7 +11,7 @@ function extractTokenFromCookie(cookie: string | undefined): string | null {
 const verifyTokenHandler = async (request: NextRequest) => {
   let token: string | null = null;
   const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer')) {
     token = authHeader.split(' ')[1];
   } else {
     // Fallback to cookie
@@ -24,8 +24,12 @@ const verifyTokenHandler = async (request: NextRequest) => {
   }
 
   try {
-    const decoded = verifyToken(token);
-    return NextResponse.json({ valid: true, user: decoded }, { status: 200 });
+    const decoded = verifyToken(token) as any;
+    // Use the role value from the decoded JWT
+    return NextResponse.json(
+      { valid: true, user: decoded, role: decoded?.role },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json({ valid: false, message: 'Invalid or expired token' }, { status: 401 });
   }

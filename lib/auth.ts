@@ -26,17 +26,17 @@ export const authenticateRequest = async (request: Request) => {
 
   try {
     const user = verifyToken(token) as { role: Role };
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    const allowedRoles = getAllowedRolesForRoute(pathname);
+    // const url = new URL(request.url);
+    // const pathname = url.pathname;
+    // const allowedRoles = getAllowedRolesForRoute(pathname);
 
-    if (!allowedRoles) {
-      return { error: 'No role mapping defined for this route', status: 403 };
-    }
+    // if (!allowedRoles) {
+    //   return { error: 'No role mapping defined for this route', status: 403 };
+    // }
 
-    if (!allowedRoles.includes(user.role)) {
-      return { error: 'Forbidden: role not allowed', status: 403 };
-    }
+    // if (!allowedRoles.includes(user.role)) {
+    //   return { error: 'Forbidden: role not allowed', status: 403 };
+    // }
 
     return { user };
   } catch (err) {
