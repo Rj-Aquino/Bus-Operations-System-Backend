@@ -4,7 +4,7 @@ import { withCors } from '@/lib/withcors';
 
 function extractTokenFromCookie(cookie: string | undefined): string | null {
   if (!cookie) return null;
-  const match = cookie.match(/token=([^;]+)/);
+  const match = cookie.match(/jwt=([^;]+)/);
   return match ? match[1] : null;
 }
 
