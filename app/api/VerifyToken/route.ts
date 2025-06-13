@@ -11,26 +11,34 @@ function extractTokenFromCookie(cookie: string | undefined): string | null {
 const verifyTokenHandler = async (request: NextRequest) => {
   let token: string | null = null;
   const authHeader = request.headers.get('authorization');
+  console.log('Authorization header:', authHeader);
+
   if (authHeader && authHeader.startsWith('Bearer')) {
     token = authHeader.split(' ')[1];
+    console.log('Token extracted from Authorization header:', token);
   } else {
     // Fallback to cookie
     const cookie = request.headers.get('cookie');
+    console.log('Cookie header:', cookie);
     token = extractTokenFromCookie(cookie || '');
+    console.log('Token extracted from cookie:', token);
   }
 
   if (!token) {
+    console.log('No token provided');
     return NextResponse.json({ valid: false, message: 'No token provided' }, { status: 401 });
   }
 
   try {
     const decoded = verifyToken(token) as any;
-    // Use the role value from the decoded JWT
+    console.log('Token successfully verified. Decoded payload:', decoded);
+    // Role is not included in the response
     return NextResponse.json(
-      { valid: true, user: decoded, role: decoded?.role },
+      { valid: true, user: decoded },
       { status: 200 }
     );
   } catch (error) {
+    console.log('Token verification failed:', error);
     return NextResponse.json({ valid: false, message: 'Invalid or expired token' }, { status: 401 });
   }
 };
