@@ -3,8 +3,11 @@ import { getAllowedRolesForRoute, Role } from '@/lib/roles';
 
 function extractTokenFromCookie(cookie: string | undefined): string | null {
   if (!cookie) return null;
-  const match = cookie.match(/token=([^;]+)/);
-  return match ? match[1] : null;
+
+  const jwtMatch = cookie.match(/(?:^|;\s*)jwt=([^;]+)/);
+  const tokenMatch = cookie.match(/(?:^|;\s*)token=([^;]+)/);
+
+  return jwtMatch?.[1] || tokenMatch?.[1] || null;
 }
 
 export const authenticateRequest = async (request: Request) => {
