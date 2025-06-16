@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'NotReady', 'InOperation', 'Completed');
+CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'NotReady', 'InOperation');
 
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
@@ -7,6 +7,10 @@ CREATE TABLE "Quota_Policy" (
     "StartDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "EndDate" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + interval '1 year'),
     "RegularBusAssignmentID" TEXT NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Quota_Policy_pkey" PRIMARY KEY ("QuotaPolicyID")
 );
@@ -15,6 +19,10 @@ CREATE TABLE "Quota_Policy" (
 CREATE TABLE "Fixed" (
     "FQuotaPolicyID" TEXT NOT NULL,
     "Quota" DOUBLE PRECISION NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Fixed_pkey" PRIMARY KEY ("FQuotaPolicyID")
 );
@@ -23,6 +31,10 @@ CREATE TABLE "Fixed" (
 CREATE TABLE "Percentage" (
     "PQuotaPolicyID" TEXT NOT NULL,
     "Percentage" DOUBLE PRECISION NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Percentage_pkey" PRIMARY KEY ("PQuotaPolicyID")
 );
@@ -34,6 +46,10 @@ CREATE TABLE "Stop" (
     "latitude" TEXT NOT NULL,
     "longitude" TEXT NOT NULL,
     "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Stop_pkey" PRIMARY KEY ("StopID")
 );
@@ -45,6 +61,10 @@ CREATE TABLE "Route" (
     "EndStopID" TEXT NOT NULL,
     "RouteName" TEXT NOT NULL,
     "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Route_pkey" PRIMARY KEY ("RouteID")
 );
@@ -55,6 +75,10 @@ CREATE TABLE "RouteStop" (
     "RouteID" TEXT NOT NULL,
     "StopID" TEXT NOT NULL,
     "StopOrder" INTEGER NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "RouteStop_pkey" PRIMARY KEY ("RouteStopID")
 );
@@ -64,7 +88,6 @@ CREATE TABLE "BusAssignment" (
     "BusAssignmentID" TEXT NOT NULL,
     "BusID" TEXT NOT NULL,
     "RouteID" TEXT NOT NULL,
-    "AssignmentDate" TIMESTAMP(3) NOT NULL,
     "Battery" BOOLEAN NOT NULL DEFAULT false,
     "Lights" BOOLEAN NOT NULL DEFAULT false,
     "Oil" BOOLEAN NOT NULL DEFAULT false,
@@ -78,6 +101,10 @@ CREATE TABLE "BusAssignment" (
     "Self_Conductor" BOOLEAN NOT NULL DEFAULT false,
     "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
     "Status" "BusOperationStatus" NOT NULL DEFAULT 'NotReady',
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "BusAssignment_pkey" PRIMARY KEY ("BusAssignmentID")
 );
@@ -88,6 +115,10 @@ CREATE TABLE "RegularBusAssignment" (
     "DriverID" TEXT NOT NULL,
     "ConductorID" TEXT NOT NULL,
     "LatestBusTripID" TEXT,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "RegularBusAssignment_pkey" PRIMARY KEY ("RegularBusAssignmentID")
 );
@@ -100,6 +131,12 @@ CREATE TABLE "BusTrip" (
     "CompletedAt" TIMESTAMP(3),
     "Sales" DOUBLE PRECISION,
     "ChangeFund" DOUBLE PRECISION,
+    "Remarks" TEXT,
+    "FuelExpense" DOUBLE PRECISION,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "BusTrip_pkey" PRIMARY KEY ("BusTripID")
 );
@@ -108,6 +145,10 @@ CREATE TABLE "BusTrip" (
 CREATE TABLE "Ticket_Type" (
     "TicketTypeID" TEXT NOT NULL,
     "Value" DOUBLE PRECISION NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "Ticket_Type_pkey" PRIMARY KEY ("TicketTypeID")
 );
@@ -119,6 +160,11 @@ CREATE TABLE "TicketBusTripAssignment" (
     "TicketTypeID" TEXT NOT NULL,
     "StartingIDNumber" INTEGER,
     "EndingIDNumber" INTEGER,
+    "OverallEndingID" INTEGER,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
 
     CONSTRAINT "TicketBusTripAssignment_pkey" PRIMARY KEY ("TicketBusTripID")
 );
@@ -127,7 +173,16 @@ CREATE TABLE "TicketBusTripAssignment" (
 CREATE UNIQUE INDEX "RouteStop_RouteID_StopID_key" ON "RouteStop"("RouteID", "StopID");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "BusAssignment_BusID_key" ON "BusAssignment"("BusID");
+
+-- CreateIndex
 CREATE INDEX "BusAssignment_BusID_idx" ON "BusAssignment"("BusID");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RegularBusAssignment_DriverID_key" ON "RegularBusAssignment"("DriverID");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RegularBusAssignment_ConductorID_key" ON "RegularBusAssignment"("ConductorID");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RegularBusAssignment_LatestBusTripID_key" ON "RegularBusAssignment"("LatestBusTripID");
