@@ -2,6 +2,10 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { getCache, setCache } from '@/lib/cache';
+
+const ROUTES_CACHE_KEY = 'routes_list_full';
+const TTL_SECONDS = 60 * 60; // 1 hour
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -9,14 +13,36 @@ const getHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
+  // Try cache first
+  const cached = await getCache<any[]>(ROUTES_CACHE_KEY);
+  if (cached) {
+    // Apply UpdatedAt/UpdatedBy logic to cached data
+    const processed = cached.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+    return NextResponse.json(processed);
+  }
+
   try {
     const routes = await prisma.route.findMany({
       where: {
         IsDeleted: false,
       },
+      orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         RouteID: true,
         RouteName: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
         StartStop: {
           select: {
             StopID: true,
@@ -43,7 +69,20 @@ const getHandler = async (request: NextRequest) => {
       },
     });
 
-    return NextResponse.json(routes);
+    // Apply UpdatedAt/UpdatedBy logic before caching and returning
+    const processed = routes.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+
+    await setCache(ROUTES_CACHE_KEY, processed, TTL_SECONDS);
+    return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch full route details:', error);
     return NextResponse.json({ error: 'Failed to fetch full route details' }, { status: 500 });

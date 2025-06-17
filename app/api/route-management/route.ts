@@ -3,6 +3,15 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { getCache, setCache, delCache } from '@/lib/cache';
+
+const ROUTES_CACHE_KEY = 'routes_list';
+const TTL_SECONDS = 60 * 60; // 1 hour
+
+type RouteStopInput = {
+  StopID: string | { StopID: string };
+  StopOrder: number;
+};
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -10,14 +19,36 @@ const getHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
+  // Try cache first
+  const cached = await getCache<any[]>(ROUTES_CACHE_KEY);
+  if (cached) {
+    // Apply UpdatedAt/UpdatedBy logic to cached data
+    const processed = cached.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+    return NextResponse.json(processed);
+  }
+
   try {
     const routes = await prisma.route.findMany({
       where: {
         IsDeleted: false,
       },
+      orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         RouteID: true,
         RouteName: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
         StartStop: {
           select: {
             StopName: true,
@@ -31,16 +62,24 @@ const getHandler = async (request: NextRequest) => {
       },
     });
 
-    return NextResponse.json(routes);
+    // Apply UpdatedAt/UpdatedBy logic before caching and returning
+    const processed = routes.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+
+    await setCache(ROUTES_CACHE_KEY, processed, TTL_SECONDS);
+    return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch route summary:', error);
     return NextResponse.json({ error: 'Failed to fetch routes' }, { status: 500 });
   }
-};
-
-type RouteStopInput = {
-  StopID: string | { StopID: string };
-  StopOrder: number;
 };
 
 const postHandler = async (request: NextRequest) => {
@@ -92,6 +131,18 @@ const postHandler = async (request: NextRequest) => {
           StartStopID: data.StartStopID,
           EndStopID: data.EndStopID,
           IsDeleted: false,
+          CreatedBy: user?.employeeId || null,
+          UpdatedBy: null, // Only set CreatedBy on creation
+        },
+        select: {
+          RouteID: true,
+          RouteName: true,
+          CreatedAt: true,
+          UpdatedAt: true,
+          CreatedBy: true,
+          UpdatedBy: true,
+          StartStop: { select: { StopName: true } },
+          EndStop: { select: { StopName: true } },
         },
       }),
       ...stopIdsWithRouteStopIDs.map(stop =>
@@ -99,7 +150,15 @@ const postHandler = async (request: NextRequest) => {
       )
     ]);
 
-    return NextResponse.json(newRoute, { status: 201 });
+    await delCache(ROUTES_CACHE_KEY);
+    return NextResponse.json({
+      ...newRoute,
+      // Apply UpdatedAt/UpdatedBy logic for immediate response
+      ...(newRoute.CreatedAt && newRoute.UpdatedAt &&
+        new Date(newRoute.CreatedAt).getTime() === new Date(newRoute.UpdatedAt).getTime()
+        ? { UpdatedAt: null, UpdatedBy: null }
+        : {}),
+    }, { status: 201 });
 
   } catch (error: any) {
     if (error?.code === 'P2002') {

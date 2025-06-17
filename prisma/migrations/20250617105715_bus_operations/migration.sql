@@ -173,16 +173,7 @@ CREATE TABLE "TicketBusTripAssignment" (
 CREATE UNIQUE INDEX "RouteStop_RouteID_StopID_key" ON "RouteStop"("RouteID", "StopID");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BusAssignment_BusID_key" ON "BusAssignment"("BusID");
-
--- CreateIndex
 CREATE INDEX "BusAssignment_BusID_idx" ON "BusAssignment"("BusID");
-
--- CreateIndex
-CREATE UNIQUE INDEX "RegularBusAssignment_DriverID_key" ON "RegularBusAssignment"("DriverID");
-
--- CreateIndex
-CREATE UNIQUE INDEX "RegularBusAssignment_ConductorID_key" ON "RegularBusAssignment"("ConductorID");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RegularBusAssignment_LatestBusTripID_key" ON "RegularBusAssignment"("LatestBusTripID");

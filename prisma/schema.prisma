@@ -108,7 +108,7 @@ enum BusOperationStatus {
 
 model BusAssignment {
   BusAssignmentID String @id
-  BusID           String @unique
+  BusID           String
   RouteID         String
 
   Battery         Boolean @default(false)
@@ -138,8 +138,8 @@ model BusAssignment {
 
 model RegularBusAssignment {
   RegularBusAssignmentID String @id
-  DriverID               String @unique
-  ConductorID            String @unique
+  DriverID               String 
+  ConductorID            String 
   BusAssignment          BusAssignment @relation(fields: [RegularBusAssignmentID], references: [BusAssignmentID])
 
   QuotaPolicies Quota_Policy[]

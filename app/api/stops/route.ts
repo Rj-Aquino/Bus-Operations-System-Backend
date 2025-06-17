@@ -3,6 +3,10 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { getCache, setCache, delCache } from '@/lib/cache';
+
+const STOPS_CACHE_KEY = 'stops_list';
+const TTL_SECONDS = 60 * 60; // 1 hour
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -10,20 +14,53 @@ const getHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
+  // Try cache first
+  const cached = await getCache<any[]>(STOPS_CACHE_KEY);
+  if (cached) {
+    // Apply UpdatedAt/UpdatedBy logic to cached data
+    const processed = cached.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+    return NextResponse.json(processed);
+  }
+
   try {
     const stops = await prisma.stop.findMany({
-      where: {
-        IsDeleted: false,
-      },
+      where: { IsDeleted: false },
+      orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         StopID: true,
         StopName: true,
         latitude: true,
         longitude: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
       },
     });
 
-    return NextResponse.json(stops);
+    // Apply UpdatedAt/UpdatedBy logic before caching and returning
+    const processed = stops.map(item => {
+      if (
+        item.CreatedAt &&
+        item.UpdatedAt &&
+        new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
+      ) {
+        return { ...item, UpdatedAt: null, UpdatedBy: null };
+      }
+      return item;
+    });
+
+    await setCache(STOPS_CACHE_KEY, processed, TTL_SECONDS);
+    return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch stops:', error);
     return NextResponse.json({ error: 'Failed to fetch stops' }, { status: 500 });
@@ -59,21 +96,37 @@ const postHandler = async (req: NextRequest) => {
         StopName,
         latitude,
         longitude,
+        CreatedBy: user?.employeeId || null,
+        UpdatedBy: null, // Only set CreatedBy on creation
       },
       select: {
         StopID: true,
         StopName: true,
         latitude: true,
         longitude: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
       },
     });
 
-    return NextResponse.json(newStop, { status: 201 });
+    await delCache(STOPS_CACHE_KEY);
+
+    // Apply UpdatedAt/UpdatedBy logic for immediate response
+    const processed =
+      newStop.CreatedAt &&
+      newStop.UpdatedAt &&
+      new Date(newStop.CreatedAt).getTime() === new Date(newStop.UpdatedAt).getTime()
+        ? { ...newStop, UpdatedAt: null, UpdatedBy: null }
+        : newStop;
+
+    return NextResponse.json(processed, { status: 201 });
   } catch (error) {
     console.error('Failed to create stop:', error);
     return NextResponse.json({ error: 'Failed to create stop' }, { status: 500 });
   }
-};
+}
 
 export const GET = withCors(getHandler);
 export const POST = withCors(postHandler);

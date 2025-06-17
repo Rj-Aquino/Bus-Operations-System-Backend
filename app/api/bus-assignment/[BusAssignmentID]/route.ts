@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
-import { updateQuotaPolicy } from '@/lib/quotaPolicy';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
+import { delCache } from '@/lib/cache';
+
+const ASSIGNMENTS_CACHE_KEY = 'regular_bus_assignments';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -21,19 +23,16 @@ const putHandler = async (request: NextRequest) => {
 
     const data = await request.json();
 
-    const [driverSuffix, conductorSuffix] = [data.DriverID, data.ConductorID].map(id => id?.split('-')[1]);
-    if (driverSuffix === conductorSuffix) {
-      return NextResponse.json({ error: 'Driver and Conductor cannot be the same person' }, { status: 400 });
-    }
-
-    // Fetch current RegularBusAssignment and QuotaPolicies
+    // Fetch current RegularBusAssignment
     const existing = await prisma.busAssignment.findUnique({
       where: { BusAssignmentID },
       select: {
+        BusID: true,
         RegularBusAssignment: {
           select: {
             RegularBusAssignmentID: true,
-            QuotaPolicies: { select: { QuotaPolicyID: true } },
+            DriverID: true,
+            ConductorID: true,
           },
         },
       },
@@ -43,7 +42,41 @@ const putHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'BusAssignment or RegularBusAssignment not found' }, { status: 404 });
     }
 
-    const oldRegularBusAssignmentID = existing.RegularBusAssignment.RegularBusAssignmentID;
+    // 1. BusID must not already be assigned (not deleted, not this assignment)
+    const existingBus = await prisma.busAssignment.findFirst({
+      where: {
+        BusID: data.BusID,
+        IsDeleted: false,
+        NOT: { BusAssignmentID }
+      }
+    });
+    if (existingBus) {
+      return NextResponse.json({ error: 'Bus is already assigned.' }, { status: 400 });
+    }
+
+    // 2. DriverID must not already be assigned (not deleted, not this assignment)
+    const existingDriver = await prisma.regularBusAssignment.findFirst({
+      where: {
+        DriverID: data.DriverID,
+        BusAssignment: { IsDeleted: false },
+        NOT: { RegularBusAssignmentID: existing.RegularBusAssignment.RegularBusAssignmentID }
+      }
+    });
+    if (existingDriver) {
+      return NextResponse.json({ error: 'Driver is already assigned.' }, { status: 400 });
+    }
+
+    // 3. ConductorID must not already be assigned (not deleted, not this assignment)
+    const existingConductor = await prisma.regularBusAssignment.findFirst({
+      where: {
+        ConductorID: data.ConductorID,
+        BusAssignment: { IsDeleted: false },
+        NOT: { RegularBusAssignmentID: existing.RegularBusAssignment.RegularBusAssignmentID }
+      }
+    });
+    if (existingConductor) {
+      return NextResponse.json({ error: 'Conductor is already assigned.' }, { status: 400 });
+    }
 
     // Update BusAssignment and RegularBusAssignment
     const updated = await prisma.busAssignment.update({
@@ -51,10 +84,12 @@ const putHandler = async (request: NextRequest) => {
       data: {
         BusID: data.BusID,
         RouteID: data.RouteID,
+        UpdatedBy: user?.employeeId || null,
         RegularBusAssignment: {
           update: {
             DriverID: data.DriverID,
             ConductorID: data.ConductorID,
+            UpdatedBy: user?.employeeId || null,
           },
         },
       },
@@ -62,17 +97,30 @@ const putHandler = async (request: NextRequest) => {
         BusAssignmentID: true,
         BusID: true,
         RouteID: true,
-        AssignmentDate: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
         RegularBusAssignment: {
           select: {
             RegularBusAssignmentID: true,
             DriverID: true,
             ConductorID: true,
+            CreatedAt: true,
+            UpdatedAt: true,
+            CreatedBy: true,
+            UpdatedBy: true,
             QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
-                Fixed: { select: { Quota: true } },
-                Percentage: { select: { Percentage: true } },
+                StartDate: true,
+                EndDate: true,
+                CreatedAt: true,
+                UpdatedAt: true,
+                CreatedBy: true,
+                UpdatedBy: true,
+                Fixed: { select: { Quota: true, CreatedAt: true, UpdatedAt: true, CreatedBy: true, UpdatedBy: true } },
+                Percentage: { select: { Percentage: true, CreatedAt: true, UpdatedAt: true, CreatedBy: true, UpdatedBy: true } },
               },
             },
           },
@@ -88,56 +136,41 @@ const putHandler = async (request: NextRequest) => {
     });
 
     // Create new quota policies
-    if (Array.isArray(data.quotaPolicies)) {
-      for (const qp of data.quotaPolicies) {
-        const { type, value, StartDate, EndDate } = qp;
+    if (Array.isArray(data.QuotaPolicy)) {
+      for (const qp of data.QuotaPolicy) {
+        const quotaPolicyID = generateFormattedID("QP");
+        const quotaPolicyData: any = {
+          QuotaPolicyID: quotaPolicyID,
+          RegularBusAssignmentID: newRegularBusAssignmentID!,
+          ...(qp.startDate && { StartDate: new Date(qp.startDate) }),
+          ...(qp.endDate && { EndDate: new Date(qp.endDate) }),
+          CreatedBy: user?.employeeId || null,
+          UpdatedBy: user?.employeeId || null,
+        };
 
-        if (!type || value == null) {
-          return NextResponse.json(
-            { error: 'Each quota policy must have type and value.' },
-            { status: 400 }
-          );
+        if (qp.type && qp.type.toUpperCase() === 'FIXED') {
+          quotaPolicyData.Fixed = {
+            create: {
+              Quota: qp.value,
+              CreatedBy: user?.employeeId || null,
+              UpdatedBy: user?.employeeId || null,
+            },
+          };
+        } else if (qp.type && qp.type.toUpperCase() === 'PERCENTAGE') {
+          quotaPolicyData.Percentage = {
+            create: {
+              Percentage: qp.value,
+              CreatedBy: user?.employeeId || null,
+              UpdatedBy: user?.employeeId || null,
+            },
+          };
         }
 
-        if (!StartDate || !EndDate) {
-          return NextResponse.json(
-            { error: `Each quota policy must have StartDate and EndDate.` },
-            { status: 400 }
-          );
-        }
-
-        const createdQuotaPolicy = await prisma.quota_Policy.create({
-          data: {
-            QuotaPolicyID: generateFormattedID("QP"),
-            RegularBusAssignmentID: newRegularBusAssignmentID!,
-            StartDate: new Date(StartDate),
-            EndDate: new Date(EndDate),
-          },
+        await prisma.quota_Policy.create({
+          data: quotaPolicyData,
         });
-
-        if (type.toUpperCase() === 'FIXED') {
-          await prisma.fixed.create({
-            data: {
-              FQuotaPolicyID: createdQuotaPolicy.QuotaPolicyID,
-              Quota: value,
-            },
-          });
-        } else if (type.toUpperCase() === 'PERCENTAGE') {
-          await prisma.percentage.create({
-            data: {
-              PQuotaPolicyID: createdQuotaPolicy.QuotaPolicyID,
-              Percentage: value,
-            },
-          });
-        } else {
-          return NextResponse.json(
-            { error: `Invalid quota policy type: ${type}` },
-            { status: 400 }
-          );
-        }
       }
     }
-
 
     // Refetch updated bus assignment with quota policies
     const refreshed = await prisma.busAssignment.findUnique({
@@ -146,18 +179,29 @@ const putHandler = async (request: NextRequest) => {
         BusAssignmentID: true,
         BusID: true,
         RouteID: true,
-        AssignmentDate: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
         RegularBusAssignment: {
           select: {
             DriverID: true,
             ConductorID: true,
+            CreatedAt: true,
+            UpdatedAt: true,
+            CreatedBy: true,
+            UpdatedBy: true,
             QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
                 StartDate: true,
                 EndDate: true,
-                Fixed: { select: { Quota: true } },
-                Percentage: { select: { Percentage: true } },
+                CreatedAt: true,
+                UpdatedAt: true,
+                CreatedBy: true,
+                UpdatedBy: true,
+                Fixed: { select: { Quota: true, CreatedAt: true, UpdatedAt: true, CreatedBy: true, UpdatedBy: true } },
+                Percentage: { select: { Percentage: true, CreatedAt: true, UpdatedAt: true, CreatedBy: true, UpdatedBy: true } },
               },
             },
           },
@@ -165,13 +209,14 @@ const putHandler = async (request: NextRequest) => {
       },
     });
 
+    await delCache(ASSIGNMENTS_CACHE_KEY);
+
     return NextResponse.json(refreshed, { status: 200 });
   } catch (error) {
     console.error('UPDATE_ASSIGNMENT_ERROR', error);
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 };
-
 
 const patchHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -188,21 +233,25 @@ const patchHandler = async (request: NextRequest) => {
     }
 
     const body = await request.json();
-    let { IsDeleted } = body;
+    const { IsDeleted } = body;
 
     if (typeof IsDeleted !== 'boolean') {
-      return NextResponse.json({ error: '`isDeleted` must be a boolean' }, { status: 400 });
+      return NextResponse.json({ error: '`IsDeleted` must be a boolean' }, { status: 400 });
     }
-
-    IsDeleted = !IsDeleted;
 
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
-      data: { IsDeleted: IsDeleted },
+      data: { 
+        IsDeleted,
+        UpdatedBy: user?.employeeId || null,
+      },
       select: {
         IsDeleted: true,
+        UpdatedBy: true,
       },
     });
+
+    await delCache(ASSIGNMENTS_CACHE_KEY);
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {

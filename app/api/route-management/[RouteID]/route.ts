@@ -3,6 +3,10 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { delCache } from '@/lib/cache';
+
+const ROUTES_CACHE_KEY = 'routes_list';
+const ROUTES_CACHE_KEY_FULL = 'routes_list_full';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
@@ -24,7 +28,7 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const data = await request.json();
-    const { RouteName, StartStopID, EndStopID, RouteStops} = data;
+    const { RouteName, StartStopID, EndStopID, RouteStops } = data;
 
     if (StartStopID === EndStopID) {
       return NextResponse.json(
@@ -71,31 +75,19 @@ const putHandler = async (request: NextRequest) => {
         RouteName: RouteName ?? existingRoute.RouteName,
         StartStopID: StartStopID ?? existingRoute.StartStopID,
         EndStopID: EndStopID ?? existingRoute.EndStopID,
+        UpdatedBy: user?.employeeId || null,
+      },
+      select: {
+        RouteID: true,
+        RouteName: true,
+        StartStopID: true,
+        EndStopID: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
       },
     });
-
-    // if (normalizedStops.length > 0) {
-    //   const stopsWithIDs = await Promise.all(
-    //     normalizedStops.map(async stop => ({
-    //       ...stop,
-    //       RouteStopID: await generateFormattedID('RTS'),
-    //     }))
-    //   );
-
-    //   await prisma.$transaction([
-    //     prisma.routeStop.deleteMany({ where: { RouteID } }),
-    //     ...stopsWithIDs.map(stop =>
-    //       prisma.routeStop.create({
-    //         data: {
-    //           RouteStopID: stop.RouteStopID,
-    //           RouteID,
-    //           StopID: stop.StopID,
-    //           StopOrder: stop.StopOrder,
-    //         },
-    //       })
-    //     ),
-    //   ]);
-    // }
 
     // Clear existing stops for the route
     await prisma.routeStop.deleteMany({ where: { RouteID } });
@@ -121,6 +113,10 @@ const putHandler = async (request: NextRequest) => {
         )
       );
     }
+
+    // Invalidate both summary and full route caches
+    await delCache(ROUTES_CACHE_KEY);
+    await delCache(ROUTES_CACHE_KEY_FULL);
 
     return NextResponse.json(updatedRoute, { status: 200 });
 
@@ -170,8 +166,20 @@ const patchHandler = async (req: NextRequest) => {
 
     const updatedRoute = await prisma.route.update({
       where: { RouteID },
-      data: { IsDeleted: IsDeleted },
+      data: { IsDeleted: IsDeleted, UpdatedBy: user?.employeeId || null },
+      select: {
+        RouteID: true,
+        RouteName: true,
+        IsDeleted: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
+      },
     });
+
+    await delCache(ROUTES_CACHE_KEY);
+    await delCache(ROUTES_CACHE_KEY_FULL);
 
     return NextResponse.json(updatedRoute, { status: 200 });
 
