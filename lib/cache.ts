@@ -18,3 +18,7 @@ export async function setCache(key: string, value: any, ttlSeconds: number) {
 export async function delCache(key: string) {
   await redis.del(key);
 }
+
+export async function clearAllCache() {
+  await redis.flushdb();
+}

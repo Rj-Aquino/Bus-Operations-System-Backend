@@ -14,11 +14,10 @@ function extractTokenFromCookie(cookie: string | undefined): string | null {
 const verifyTokenHandler = async (request: NextRequest) => {
   let token: string | null = null;
   const authHeader = request.headers.get('authorization');
-  console.log('Authorization header:', authHeader);
 
   if (authHeader && authHeader.startsWith('Bearer')) {
     token = authHeader.split(' ')[1];
-    console.log('Token extracted from Authorization header:', token);
+
   } else {
     // Fallback to cookie
     const cookie = request.headers.get('cookie');

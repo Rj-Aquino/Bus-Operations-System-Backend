@@ -318,7 +318,10 @@ const putHandler = async (request: NextRequest) => {
     // Reset logic
     if (body.ResetCompleted) {
       const updatedFullRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
-      await delCache('bus_operations_list');
+      await delCache('bus_operations_list_InOperation');
+      await delCache('bus_operations_list_NotReady');
+      await delCache('bus_operations_list_NotStarted');
+      await delCache('bus_operations_ready_assignments');
       return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
     }
 
@@ -364,11 +367,23 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const updatedFullRecord = await fetchFullRecord(BusAssignmentID);
-    await delCache('bus_operations_list');
+    await delCache('bus_operations_list_InOperation');
+    await delCache('bus_operations_list_NotReady');
+    await delCache('bus_operations_list_NotStarted');
+    await delCache('bus_operations_ready_assignments');
     return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update error:', error);
+    if (
+      error.code === 'P2003' &&
+      String(error.message).includes('TicketBusTripAssignment_TicketTypeID_fkey')
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid TicketTypeID: Ticket type does not exist.' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 };
