@@ -6,6 +6,7 @@ import { withCors } from '@/lib/withcors';
 import { getCache, setCache, delCache } from '@/lib/cache';
 
 const ROUTES_CACHE_KEY = 'routes_list';
+const ROUTES_CACHE_KEY_FULL = 'routes_list_full';
 const TTL_SECONDS = 60 * 60; // 1 hour
 
 type RouteStopInput = {
@@ -151,6 +152,8 @@ const postHandler = async (request: NextRequest) => {
     ]);
 
     await delCache(ROUTES_CACHE_KEY);
+    await delCache(ROUTES_CACHE_KEY_FULL);
+    
     return NextResponse.json({
       ...newRoute,
       // Apply UpdatedAt/UpdatedBy logic for immediate response

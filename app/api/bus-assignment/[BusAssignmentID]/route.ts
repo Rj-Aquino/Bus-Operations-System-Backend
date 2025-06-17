@@ -136,14 +136,17 @@ const putHandler = async (request: NextRequest) => {
     });
 
     // Create new quota policies
-    if (Array.isArray(data.QuotaPolicy)) {
-      for (const qp of data.QuotaPolicy) {
+    if (Array.isArray(data.quotaPolicies)) {
+      for (const qp of data.quotaPolicies) {
         const quotaPolicyID = generateFormattedID("QP");
+        // Accept both camelCase and PascalCase for dates
+        const startDate = qp.startDate || qp.StartDate;
+        const endDate = qp.endDate || qp.EndDate;
         const quotaPolicyData: any = {
           QuotaPolicyID: quotaPolicyID,
           RegularBusAssignmentID: newRegularBusAssignmentID!,
-          ...(qp.startDate && { StartDate: new Date(qp.startDate) }),
-          ...(qp.endDate && { EndDate: new Date(qp.endDate) }),
+          ...(startDate && { StartDate: new Date(startDate) }),
+          ...(endDate && { EndDate: new Date(endDate) }),
           CreatedBy: user?.employeeId || null,
           UpdatedBy: user?.employeeId || null,
         };
@@ -210,6 +213,14 @@ const putHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
+    await delCache('regular_bus_assignments');
+    await delCache('external_buses_all');
+    await delCache('external_buses_unassigned');
+    await delCache('external_drivers_all');
+    await delCache('external_drivers_unassigned');
+    await delCache('external_conductors_all');
+    await delCache('external_conductors_unassigned');
+    await delCache('bus_operations_list_NotReady');
 
     return NextResponse.json(refreshed, { status: 200 });
   } catch (error) {
@@ -252,6 +263,13 @@ const patchHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
+    await delCache('regular_bus_assignments');
+    await delCache('external_buses_all');
+    await delCache('external_buses_unassigned');
+    await delCache('external_drivers_all');
+    await delCache('external_drivers_unassigned');
+    await delCache('external_conductors_all');
+    await delCache('external_conductors_unassigned');
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {

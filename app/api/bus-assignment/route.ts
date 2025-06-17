@@ -19,14 +19,15 @@ const gethandler = async (request: NextRequest) => {
   if (cached) {
     // Apply UpdatedAt/UpdatedBy logic to cached data
     const processed = cached.map(item => {
+      let processedItem: any = item;
       if (
         item.CreatedAt &&
         item.UpdatedAt &&
         new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
       ) {
-        return { ...item, UpdatedAt: null, UpdatedBy: null };
+        processedItem = { ...item, UpdatedAt: null, UpdatedBy: null };
       }
-      return item;
+      return processedItem;
     });
     return NextResponse.json(processed, { status: 200 });
   }
@@ -64,6 +65,10 @@ const gethandler = async (request: NextRequest) => {
           select: {
             IsDeleted: true,
             BusID: true,
+            CreatedAt: true,
+            UpdatedAt: true,
+            CreatedBy: true,
+            UpdatedBy: true,
             Route: {
               select: {
                 RouteID: true,
@@ -81,14 +86,43 @@ const gethandler = async (request: NextRequest) => {
 
     // Apply UpdatedAt/UpdatedBy logic before caching and returning
     const processed = assignments.map(item => {
+      let processedItem: any = item;
+      // For RegularBusAssignment
       if (
         item.CreatedAt &&
         item.UpdatedAt &&
         new Date(item.CreatedAt).getTime() === new Date(item.UpdatedAt).getTime()
       ) {
-        return { ...item, UpdatedAt: null, UpdatedBy: null };
+        processedItem = { ...processedItem, UpdatedAt: null, UpdatedBy: null };
       }
-      return item;
+      // For BusAssignment
+      if (
+        item.BusAssignment &&
+        item.BusAssignment.CreatedAt &&
+        item.BusAssignment.UpdatedAt &&
+        new Date(item.BusAssignment.CreatedAt).getTime() === new Date(item.BusAssignment.UpdatedAt).getTime()
+      ) {
+        processedItem.BusAssignment = {
+          ...processedItem.BusAssignment,
+          UpdatedAt: null,
+          UpdatedBy: null,
+        };
+      }
+      // For Route
+      if (
+        item.BusAssignment &&
+        item.BusAssignment.Route &&
+        item.BusAssignment.Route.CreatedAt &&
+        item.BusAssignment.Route.UpdatedAt &&
+        new Date(item.BusAssignment.Route.CreatedAt).getTime() === new Date(item.BusAssignment.Route.UpdatedAt).getTime()
+      ) {
+        processedItem.BusAssignment.Route = {
+          ...processedItem.BusAssignment.Route,
+          UpdatedAt: null,
+          UpdatedBy: null,
+        };
+      }
+      return processedItem;
     });
 
     // 3. Cache the result
@@ -219,6 +253,13 @@ const postHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
+    await delCache('external_buses_all');
+    await delCache('external_buses_unassigned');
+    await delCache('external_drivers_all');
+    await delCache('external_drivers_unassigned');
+    await delCache('external_conductors_all');
+    await delCache('external_conductors_unassigned');
+    await delCache('bus_operations_list_NotReady');
     return NextResponse.json(result, { status: 201 });
 
   } catch (error) {

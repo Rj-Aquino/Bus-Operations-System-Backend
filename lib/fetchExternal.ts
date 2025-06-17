@@ -7,7 +7,7 @@ function getSupabaseHeaders() {
 }
 
 export async function fetchBuses() {
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?select=busId,route,type,capacity`;
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?select=busId,route,type,capacity,license_plate`;
   const res = await fetch(url, { headers: getSupabaseHeaders() });
 
   if (!res.ok) {
