@@ -1,6 +1,12 @@
 import { verifyToken } from './jwt';
 import { getAllowedRolesForRoute, Role } from '@/lib/roles';
 
+type JWTUser = {
+  role?: Role;
+  employeeId?: string;
+  [key: string]: any;
+};
+
 function extractTokenFromCookie(cookie: string | undefined): string | null {
   if (!cookie) return null;
 
@@ -28,7 +34,6 @@ export const authenticateRequest = async (request: Request) => {
   }
 
   try {
-    const user = verifyToken(token) as { role: Role };
     // const url = new URL(request.url);
     // const pathname = url.pathname;
     // const allowedRoles = getAllowedRolesForRoute(pathname);
@@ -40,6 +45,14 @@ export const authenticateRequest = async (request: Request) => {
     // if (!allowedRoles.includes(user.role)) {
     //   return { error: 'Forbidden: role not allowed', status: 403 };
     // }
+
+    const decoded = verifyToken(token) as JWTUser;
+
+    // Normalize to ensure employeeId is always present
+    const user: JWTUser = {
+      ...decoded,
+      employeeId: decoded.employeeId || decoded.userId || null,
+    };
 
     return { user };
   } catch (err) {

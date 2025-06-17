@@ -1,7 +1,12 @@
-import { fetchConductors } from '@/lib/fetchConductors';
+import { fetchConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { getCache, setCache } from '@/lib/cache';
+import prisma from '@/client';
+
+const CONDUCTORS_CACHE_KEY = 'external_conductors_unassigned';
+const TTL_SECONDS = 60 * 60; // 1 hour
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -9,13 +14,39 @@ const getHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
+  // Try cache first
+  const cached = await getCache<any[]>(CONDUCTORS_CACHE_KEY);
+  if (cached) {
+    return NextResponse.json(
+      {
+        message: cached.length ? undefined : 'No conductors found',
+        data: cached,
+      },
+      { status: 200 }
+    );
+  }
+
   try {
     const conductors = await fetchConductors();
 
+    // Get all assigned (not deleted) ConductorIDs from the database
+    const assignedConductors = await prisma.regularBusAssignment.findMany({
+      where: {
+        BusAssignment: { IsDeleted: false }
+      },
+      select: { ConductorID: true },
+    });
+    const assignedConductorIDs = new Set(assignedConductors.map(c => String(c.ConductorID)));
+
+    // Filter out assigned conductors from the external API (which uses conductor_id)
+    const unassignedConductors = conductors.filter((conductor: any) => !assignedConductorIDs.has(String(conductor.conductor_id)));
+
+    await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors, TTL_SECONDS);
+
     return NextResponse.json(
       {
-        message: conductors.length ? undefined : 'No conductors found',
-        data: conductors,
+        message: unassignedConductors.length ? undefined : 'No conductors found',
+        data: unassignedConductors,
       },
       { status: 200 }
     );

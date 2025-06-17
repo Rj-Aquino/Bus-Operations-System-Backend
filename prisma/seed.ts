@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { BusOperationStatus , PrismaClient } from '@prisma/client';
 import { generateFormattedID } from '../lib/idGenerator'
 
 const prisma = new PrismaClient();
@@ -57,12 +57,10 @@ const stopData2 = [
 ];
 
 async function seedStops() {
-
-  // Combine and remove duplicates by StopName (first occurrence kept)
   const combinedUniqueStops = Array.from(
     new Map([...stopData1, ...stopData2].map(stop => [stop.StopName, stop])).values()
   );
-  
+
   for (const stop of combinedUniqueStops) {
     const stopID = await generateFormattedID('STP');
     await prisma.stop.create({
@@ -71,7 +69,8 @@ async function seedStops() {
         StopName: stop.StopName,
         latitude: stop.latitude,
         longitude: stop.longitude,
-        IsDeleted: false
+        IsDeleted: false,
+        CreatedBy: 'OP-2024-00123',
       }
     });
   }
@@ -80,22 +79,17 @@ async function seedStops() {
 }
 
 async function seedRoutes() {
-  // Fetch all stops
   const stops = await prisma.stop.findMany();
-
-  // Helper function to find stop by name
   const getStopIDByName = (name: string) => {
     const stop = stops.find(s => s.StopName.toLowerCase() === name.toLowerCase());
     if (!stop) throw new Error(`Stop with name "${name}" not found.`);
     return stop.StopID;
   };
 
-  // Get StopIDs
   const sapangPalayID = getStopIDByName('Sapang Palay Terminal');
   const pitxID = getStopIDByName('PITX Arrivals/Transfers');
   const divisoriaID = getStopIDByName('Divisoria');
 
-  // Route: Sapang Palay ↔ PITX
   const routeID1 = await generateFormattedID('RT');
   await prisma.route.create({
     data: {
@@ -103,11 +97,11 @@ async function seedRoutes() {
       StartStopID: sapangPalayID,
       EndStopID: pitxID,
       RouteName: 'Sapang Palay - PITX',
-      IsDeleted: false
+      IsDeleted: false,
+      CreatedBy: 'OP-2024-00123',
     },
   });
 
-  // Route: Sapang Palay ↔ Divisoria
   const routeID2 = await generateFormattedID('RT');
   await prisma.route.create({
     data: {
@@ -115,28 +109,19 @@ async function seedRoutes() {
       StartStopID: sapangPalayID,
       EndStopID: divisoriaID,
       RouteName: 'Sapang Palay - Divisoria',
-      IsDeleted: false
+      IsDeleted: false,
+      CreatedBy: 'OP-2024-00123',
     },
   });
 
-  console.log('Bidirectional routes seeded successfully');
+  console.log('Routes seeded');
 }
 
 async function seedRouteStops() {
   const routes = await prisma.route.findMany();
   const stops = await prisma.stop.findMany();
+  const stopMap = new Map(stops.map(s => [s.StopName, s.StopID]));
 
-  if (routes.length < 2 || stops.length === 0) {
-    throw new Error('Insufficient routes or stops found.');
-  }
-
-  // Helper to map StopName to StopID
-  const stopMap = new Map();
-  for (const stop of stops) {
-    stopMap.set(stop.StopName, stop.StopID);
-  }
-
-  // Only two route datasets now
   const routeStopDataSets = [
     { routeName: 'Sapang Palay - PITX', stopData: stopData1 },
     { routeName: 'Sapang Palay - Divisoria', stopData: stopData2 },
@@ -144,19 +129,12 @@ async function seedRouteStops() {
 
   for (const { routeName, stopData } of routeStopDataSets) {
     const route = routes.find(r => r.RouteName === routeName);
-    if (!route) {
-      console.warn(`⚠️ Route "${routeName}" not found. Skipping.`);
-      continue;
-    }
+    if (!route) continue;
 
     let stopOrder = 1;
-
-    for (const stopInfo of stopData) {
-      const stopID = stopMap.get(stopInfo.StopName);
-      if (!stopID) {
-        console.warn(`⚠️ Stop "${stopInfo.StopName}" not found in database. Skipping.`);
-        continue;
-      }
+    for (const stop of stopData) {
+      const stopID = stopMap.get(stop.StopName);
+      if (!stopID) continue;
 
       const routeStopID = await generateFormattedID('RTS');
       await prisma.routeStop.create({
@@ -164,33 +142,22 @@ async function seedRouteStops() {
           RouteStopID: routeStopID,
           RouteID: route.RouteID,
           StopID: stopID,
-          StopOrder: stopOrder,
+          StopOrder: stopOrder++,
+          CreatedBy: 'OP-2024-00123',
         },
       });
-
-      stopOrder++;
     }
   }
 
-  console.log('RouteStops seeded successfully');
+  console.log('RouteStops seeded');
 }
 
 async function seedTicketTypes() {
-  const ticketTypes = [
-    { Value: 10.0 },
-    { Value: 15.0 },
-  ];
-
-  for (const type of ticketTypes) {
+  const types = [{ Value: 10.0 }, { Value: 15.0 }];
+  for (const type of types) {
     const ticketTypeID = await generateFormattedID('TT');
-    await prisma.ticketType.create({
-      data: {
-        TicketTypeID: ticketTypeID,
-        Value: type.Value,
-      },
-    });
+    await prisma.ticketType.create({ data: { TicketTypeID: ticketTypeID, Value: type.Value, CreatedBy: 'OP-2024-00123',} });
   }
-
   console.log('Ticket types seeded');
 }
 
@@ -199,120 +166,87 @@ async function seedBusAssignments() {
   const routeID1 = allRoutes[0]?.RouteID;
   const routeID2 = allRoutes[1]?.RouteID;
 
-  // Generate IDs
-  const busAssignmentID_NotStarted = await generateFormattedID('BA');
-  const busAssignmentID_NotReady = await generateFormattedID('BA');
-  const busAssignmentID_InOperation = await generateFormattedID('BA');
-  const busAssignmentID_Completed = await generateFormattedID('BA');
+  const ids = {
+    busAssignmentID_NotStarted: await generateFormattedID('BA'),
+    busAssignmentID_NotReady: await generateFormattedID('BA'),
+    busAssignmentID_InOperation: await generateFormattedID('BA'),
+  };
 
-  await prisma.busAssignment.create({
-    data: {
-      BusAssignmentID: busAssignmentID_NotStarted,
-      BusID: 'BUS-0001',
-      RouteID: routeID1,
-      AssignmentDate: new Date('2025-04-15'),
-      Battery: true,
-      Lights: true,
-      Oil: true,
-      Water: true,
-      Break: true,
-      Air: true,
-      Gas: true,
-      Engine: true,
-      TireCondition: true,
-      Self_Driver: true,
-      Self_Conductor: true,
-      IsDeleted: false,
-      Status: 'NotStarted',
+  const assignments = [
+    {
+      id: ids.busAssignmentID_NotStarted,
+      busID: 'BUS-0001',
+      routeID: routeID1,
+      date: '2025-04-15',
+      status: BusOperationStatus.NotStarted,
+      allChecks: true,
+      driverID: 'DRV-0001',
+      conductorID: 'CDT-0002',
     },
-  });
-  await prisma.busAssignment.create({
-    data: {
-      BusAssignmentID: busAssignmentID_NotReady,
-      BusID: 'BUS-0002',
-      RouteID: routeID2,
-      AssignmentDate: new Date('2025-04-16'),
-      Battery: false,
-      Lights: false,
-      Oil: false,
-      Water: false,
-      Break: false,
-      Air: false,
-      Gas: false,
-      Engine: false,
-      TireCondition: false,
-      Self_Driver: false,
-      Self_Conductor: false,
-      IsDeleted: false,
-      Status: 'NotReady',
+    {
+      id: ids.busAssignmentID_NotReady,
+      busID: 'BUS-0002',
+      routeID: routeID2,
+      date: '2025-04-16',
+      status: BusOperationStatus.NotReady,
+      allChecks: false,
+      driverID: 'DRV-0002',
+      conductorID: 'CDT-0003',
     },
-  });
-  await prisma.busAssignment.create({
-    data: {
-      BusAssignmentID: busAssignmentID_InOperation,
-      BusID: 'BUS-0003',
-      RouteID: routeID1,
-      AssignmentDate: new Date('2025-04-17'),
-      Battery: true,
-      Lights: true,
-      Oil: true,
-      Water: true,
-      Break: true,
-      Air: true,
-      Gas: true,
-      Engine: true,
-      TireCondition: true,
-      Self_Driver: true,
-      Self_Conductor: true,
-      IsDeleted: false,
-      Status: 'InOperation',
+    {
+      id: ids.busAssignmentID_InOperation,
+      busID: 'BUS-0003',
+      routeID: routeID1,
+      date: '2025-04-17',
+      status: BusOperationStatus.InOperation,
+      allChecks: true,
+      driverID: 'DRV-0003',
+      conductorID: 'CDT-0004',
     },
-  });
-  await prisma.busAssignment.create({
-    data: {
-      BusAssignmentID: busAssignmentID_Completed,
-      BusID: 'BUS-0004',
-      RouteID: routeID2,
-      AssignmentDate: new Date('2025-04-18'),
-      Battery: true,
-      Lights: true,
-      Oil: true,
-      Water: true,
-      Break: true,
-      Air: true,
-      Gas: true,
-      Engine: true,
-      TireCondition: true,
-      Self_Driver: true,
-      Self_Conductor: true,
-      IsDeleted: false,
-      Status: 'Completed',
-    },
-  });
+  ];
+
+  for (const a of assignments) {
+    await prisma.busAssignment.create({
+      data: {
+        BusAssignmentID: a.id,
+        BusID: a.busID,
+        RouteID: a.routeID,
+        Battery: a.allChecks,
+        Lights: a.allChecks,
+        Oil: a.allChecks,
+        Water: a.allChecks,
+        Break: a.allChecks,
+        Air: a.allChecks,
+        Gas: a.allChecks,
+        Engine: a.allChecks,
+        TireCondition: a.allChecks,
+        Self_Driver: a.allChecks,
+        Self_Conductor: a.allChecks,
+        IsDeleted: false,
+        Status: a.status,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+
+  }
 
   console.log('Bus assignments seeded');
-  return {
-    busAssignmentID_NotStarted,
-    busAssignmentID_NotReady,
-    busAssignmentID_InOperation,
-    busAssignmentID_Completed,
-  };
+  return ids;
 }
 
 async function seedTicketBusTrips() {
-  // Fetch existing bus trips and ticket types
   const busTrips = await prisma.busTrip.findMany({
     orderBy: { BusTripID: 'asc' },
   });
+
   const ticketTypes = await prisma.ticketType.findMany({
     orderBy: { TicketTypeID: 'asc' },
   });
 
-  if (busTrips.length === 0 || ticketTypes.length === 0) {
-    throw new Error('Missing bus trips or ticket types');
+  if (busTrips.length < 1 || ticketTypes.length < 2) {
+    throw new Error('Not enough bus trips or ticket types to seed TicketBusTrip');
   }
 
-  // Use first 2 ticket types for examples
   const [ticketType1, ticketType2] = ticketTypes;
 
   const assignments = [
@@ -321,18 +255,16 @@ async function seedTicketBusTrips() {
       TicketTypeID: ticketType1.TicketTypeID,
       StartingIDNumber: 1000,
       EndingIDNumber: 1099,
+      OverallEndingID: 1500,
+      CreatedBy: 'OP-2024-00123',
     },
     {
       BusTripID: busTrips[0].BusTripID,
       TicketTypeID: ticketType2.TicketTypeID,
       StartingIDNumber: 1100,
       EndingIDNumber: 1199,
-    },
-    {
-      BusTripID: busTrips[1].BusTripID,
-      TicketTypeID: ticketType1.TicketTypeID,
-      StartingIDNumber: 2000,
-      EndingIDNumber: 2099,
+      OverallEndingID: 1500,
+      CreatedBy: 'OP-2024-00123',
     },
   ];
 
@@ -353,37 +285,32 @@ async function seedRegularBusAssignments(ids: {
   busAssignmentID_NotStarted: string,
   busAssignmentID_NotReady: string,
   busAssignmentID_InOperation: string,
-  busAssignmentID_Completed: string,
-}) {
+}) 
+{
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotStarted,
       DriverID: 'DRV-0001',
       ConductorID: 'CDT-0002',
       LatestBusTripID: null,
+      CreatedBy: 'OP-2024-00123',
     },
   });
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotReady,
-      DriverID: 'DRV-0002',
-      ConductorID: 'CDT-0003',
+      DriverID: 'DRV-0003',
+      ConductorID: 'CDT-0004',
       LatestBusTripID: null,
+      CreatedBy: 'OP-2024-00123',
     },
   });
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_InOperation,
-      DriverID: 'DRV-0003',
-      ConductorID: 'CDT-0004',
-      // LatestBusTripID will be set after BusTrip creation
-    },
-  });
-  await prisma.regularBusAssignment.create({
-    data: {
-      RegularBusAssignmentID: ids.busAssignmentID_Completed,
-      DriverID: 'DRV-0004',
-      ConductorID: 'CDT-0001',
+      DriverID: 'DRV-0005',
+      ConductorID: 'CDT-0006',
+      CreatedBy: 'OP-2024-00123',
       // LatestBusTripID will be set after BusTrip creation
     },
   });
@@ -393,11 +320,8 @@ async function seedRegularBusAssignments(ids: {
 
 async function seedBusTrips(ids: {
   busAssignmentID_InOperation: string,
-  busAssignmentID_Completed: string,
 }) {
-  // Only create BusTrips for InOperation and Completed
   const busTripID_InOperation = await generateFormattedID('BT');
-  const busTripID_Completed = await generateFormattedID('BT');
 
   await prisma.busTrip.create({
     data: {
@@ -405,32 +329,18 @@ async function seedBusTrips(ids: {
       RegularBusAssignmentID: ids.busAssignmentID_InOperation,
       DispatchedAt: new Date('2025-06-03T09:00:00Z'),
       CompletedAt: null,
-      Sales: 2000,
       ChangeFund: 150,
-    },
-  });
-  await prisma.busTrip.create({
-    data: {
-      BusTripID: busTripID_Completed,
-      RegularBusAssignmentID: ids.busAssignmentID_Completed,
-      DispatchedAt: new Date('2025-06-04T09:00:00Z'),
-      CompletedAt: new Date('2025-06-04T11:00:00Z'),
-      Sales: 2500,
-      ChangeFund: 200,
+      CreatedBy: 'OP-2024-00123',
     },
   });
 
-  // Update LatestBusTripID for InOperation and Completed
+  // Update LatestBusTripID for the one assignment
   await prisma.regularBusAssignment.update({
     where: { RegularBusAssignmentID: ids.busAssignmentID_InOperation },
     data: { LatestBusTripID: busTripID_InOperation },
   });
-  await prisma.regularBusAssignment.update({
-    where: { RegularBusAssignmentID: ids.busAssignmentID_Completed },
-    data: { LatestBusTripID: busTripID_Completed },
-  });
 
-  console.log('BusTrips seeded and LatestBusTripID set');
+  console.log('BusTrip seeded and LatestBusTripID set');
 }
 
 async function seedQuotaPolicy() {
@@ -460,7 +370,8 @@ async function seedQuotaPolicy() {
         QuotaPolicyID: quotaPolicyID,
         StartDate: quotaPolicyData[i].StartDate,
         EndDate: quotaPolicyData[i].EndDate,
-        RegularBusAssignmentID: quotaPolicyData[i].RegularBusAssignmentID, // <-- use the FK directly
+        RegularBusAssignmentID: quotaPolicyData[i].RegularBusAssignmentID,
+        CreatedBy: 'OP-2024-00123',
       }
     });
   }
@@ -481,6 +392,7 @@ async function seedFixed() {
       data: {
         FQuotaPolicyID: fixedData[i].FQuotaPolicyID,
         Quota: fixedData[i].Quota,
+        CreatedBy: 'OP-2024-00123',
       }
     });
   }
@@ -501,6 +413,7 @@ async function seedPercentage() {
       data: {
         PQuotaPolicyID: percentageData[i].PQuotaPolicyID,
         Percentage: percentageData[i].Percentage,
+        CreatedBy: 'OP-2024-00123',
       }
     });
   }

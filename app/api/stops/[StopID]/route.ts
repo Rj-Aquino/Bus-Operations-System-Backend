@@ -2,6 +2,9 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
+import { delCache } from '@/lib/cache';
+
+const STOPS_CACHE_KEY = 'stops_list';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -32,8 +35,9 @@ const putHandler = async (request: NextRequest) => {
     if (typeof StopName === 'string') updateData.StopName = StopName;
     if (typeof latitude === 'string') updateData.latitude = latitude;
     if (typeof longitude === 'string') updateData.longitude = longitude;
+    updateData.UpdatedBy = user?.employeeId || null;
 
-    if (Object.keys(updateData).length === 0) {
+    if (Object.keys(updateData).length === 1 && updateData.UpdatedBy) {
       return NextResponse.json({ error: 'No valid fields provided for update.' }, { status: 400 });
     }
 
@@ -45,9 +49,14 @@ const putHandler = async (request: NextRequest) => {
         StopName: true,
         latitude: true,
         longitude: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
       },
     });
 
+    await delCache(STOPS_CACHE_KEY);
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
     console.error('Failed to update stop:', error);
@@ -72,7 +81,7 @@ const patchHandler = async (req: NextRequest) => {
     const { IsDeleted } = await req.json();
 
     if (typeof IsDeleted !== 'boolean') {
-      return NextResponse.json({ error: '`isDeleted` must be a boolean.' }, { status: 400 });
+      return NextResponse.json({ error: '`IsDeleted` must be a boolean.' }, { status: 400 });
     }
 
     const existing = await prisma.stop.findUnique({
@@ -86,12 +95,21 @@ const patchHandler = async (req: NextRequest) => {
 
     const updatedStop = await prisma.stop.update({
       where: { StopID },
-      data: { IsDeleted },
+      data: { IsDeleted, UpdatedBy: user?.employeeId || null },
       select: {
+        StopID: true,
+        StopName: true,
+        latitude: true,
+        longitude: true,
         IsDeleted: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
       },
     });
 
+    await delCache(STOPS_CACHE_KEY);
     return NextResponse.json(updatedStop, { status: 200 });
   } catch (error) {
     console.error('Error in PATCH /stop:', error);
