@@ -115,6 +115,8 @@ const getHandler = async (request: NextRequest) => {
             QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
+                StartDate: true,   // <-- Add this
+                EndDate: true,     // <-- And this
                 Fixed: {
                   select: {
                     Quota: true,
