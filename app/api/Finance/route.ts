@@ -4,13 +4,23 @@ import { withCors } from '@/lib/withcors';
 import { authenticateRequest } from '@/lib/auth';
 import { BusOperationStatus } from '@prisma/client';
 
+async function fetchExternal(url: string, token: string) {
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
 const getAssignmentSummary = async (request: NextRequest) => {
-  const { error, status } = await authenticateRequest(request);
+  const { error, token, status } = await authenticateRequest(request);
   if (error) {
     return NextResponse.json({ error }, { status });
   }
 
-  // Only assignments that are not deleted, InOperation, have a LatestBusTrip, and that trip has TripExpense and Sales not null
+  // Fetch assignments with needed IDs
   const assignments = await prisma.busAssignment.findMany({
     where: {
       IsDeleted: false,
@@ -24,9 +34,12 @@ const getAssignmentSummary = async (request: NextRequest) => {
     },
     select: {
       BusAssignmentID: true,
+      BusID: true,
       Route: { select: { RouteName: true } },
       RegularBusAssignment: {
         select: {
+          DriverID: true,
+          ConductorID: true,
           LatestBusTrip: {
             select: {
               DispatchedAt: true,
@@ -48,28 +61,42 @@ const getAssignmentSummary = async (request: NextRequest) => {
     },
   });
 
-  // Map to the required format
-  const result = assignments.map(a => {
+  // Gather unique IDs
+  const driverIDs = [...new Set(assignments.map(a => a.RegularBusAssignment?.DriverID).filter(Boolean))];
+  const conductorIDs = [...new Set(assignments.map(a => a.RegularBusAssignment?.ConductorID).filter(Boolean))];
+  const busIDs = [...new Set(assignments.map(a => a.BusID).filter(Boolean))];
+
+    // Fetch external data
+    const [drivers, conductors, buses] = await Promise.all([
+      fetchExternal(`${process.env.BASE_URL}/api/external/drivers/full`, token ?? ''),
+      fetchExternal(`${process.env.BASE_URL}/api/external/conductors/full`, token ?? ''),
+      fetchExternal(`${process.env.BASE_URL}/api/external/buses/full`, token ?? ''),
+    ]);
+
+    console.log(drivers, conductors, buses);
+
+    const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
+    const conductorsArr = Array.isArray(conductors) ? conductors : conductors?.data ?? [];
+    const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
+
+    const driverMap = Object.fromEntries(driversArr.map((d: any) => [d.driver_id, d]));
+    const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.conductor_id, c]));
+    const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
+
+    // Map to the required format
+    const result = assignments.map(a => {
     const trip = a.RegularBusAssignment?.LatestBusTrip;
     const quotaPolicies = a.RegularBusAssignment?.QuotaPolicies || [];
-
-   
 
     // Find the quota policy where DispatchedAt is within StartDate and EndDate
     let quotaPolicy = null;
     if (trip?.DispatchedAt) {
-      quotaPolicies.forEach(qp => {
-        console.log(
-          `[DEBUG] DispatchedAt: ${trip.DispatchedAt ? trip.DispatchedAt.toISOString() : 'null'}, StartDate: ${qp.StartDate?.toISOString()}, EndDate: ${qp.EndDate?.toISOString()}`
-        );
-      });
       quotaPolicy = quotaPolicies.find(qp =>
         qp.StartDate && qp.EndDate &&
         trip.DispatchedAt != null &&
         trip.DispatchedAt >= qp.StartDate &&
         trip.DispatchedAt <= qp.EndDate
       );
-      console.log('[DEBUG] Matched QuotaPolicy:', quotaPolicy);
     }
 
     let assignment_type = null;
@@ -85,6 +112,11 @@ const getAssignmentSummary = async (request: NextRequest) => {
       assignment_value = null;
     }
 
+    // External info
+    const driver = driverMap[a.RegularBusAssignment?.DriverID ?? ''];
+    const conductor = conductorMap[a.RegularBusAssignment?.ConductorID ?? ''];
+    const bus = busMap[a.BusID ?? ''];
+
     return {
       assignment_id: a.BusAssignmentID,
       bus_route: a.Route?.RouteName || null,
@@ -96,6 +128,10 @@ const getAssignmentSummary = async (request: NextRequest) => {
       assignment_type,
       assignment_value,
       payment_method: trip?.Payment_Method ?? null,
+      driver_name: driver?.name ?? null,
+      conductor_name: conductor?.name ?? null,
+      bus_plate_number: bus?.license_plate ?? null,
+      bus_type: bus?.type ?? null,
     };
   });
 
