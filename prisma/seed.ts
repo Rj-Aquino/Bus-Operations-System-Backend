@@ -1,5 +1,6 @@
 import { BusOperationStatus , PrismaClient } from '@prisma/client';
 import { generateFormattedID } from '../lib/idGenerator'
+import {clearAllCache} from '../lib/cache';
 
 const prisma = new PrismaClient();
 
@@ -532,6 +533,7 @@ async function main() {
   await seedFixed();
   await seedPercentage();
   await seedCompletedBusAssignments();
+  await clearAllCache(); 
 }
 
 main()

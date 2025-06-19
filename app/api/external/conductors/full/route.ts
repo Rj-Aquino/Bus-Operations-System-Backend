@@ -2,10 +2,9 @@ import { fetchConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
-const CONDUCTORS_CACHE_KEY = 'external_conductors_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -28,7 +27,7 @@ const getHandler = async (request: NextRequest) => {
   try {
     const conductors = await fetchConductors();
 
-    await setCache(CONDUCTORS_CACHE_KEY, conductors, TTL_SECONDS);
+    await setCache(CONDUCTORS_CACHE_KEY, conductors);
 
     return NextResponse.json(
       {

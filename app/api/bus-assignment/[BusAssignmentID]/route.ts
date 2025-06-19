@@ -3,9 +3,9 @@ import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-const ASSIGNMENTS_CACHE_KEY = 'regular_bus_assignments';
+const ASSIGNMENTS_CACHE_KEY = CACHE_KEYS.BUS_ASSIGNMENTS ?? '';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -213,14 +213,14 @@ const putHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
-    await delCache('regular_bus_assignments');
-    await delCache('external_buses_all');
-    await delCache('external_buses_unassigned');
-    await delCache('external_drivers_all');
-    await delCache('external_drivers_unassigned');
-    await delCache('external_conductors_all');
-    await delCache('external_conductors_unassigned');
-    await delCache('bus_operations_list_NotReady');
+    await delCache(CACHE_KEYS.BUSES ?? '');
+    await delCache(CACHE_KEYS.DRIVERS ?? '');
+    await delCache(CACHE_KEYS.CONDUCTORS ?? '');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
 
     return NextResponse.json(refreshed, { status: 200 });
   } catch (error) {
@@ -263,13 +263,14 @@ const patchHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
-    await delCache('regular_bus_assignments');
-    await delCache('external_buses_all');
-    await delCache('external_buses_unassigned');
-    await delCache('external_drivers_all');
-    await delCache('external_drivers_unassigned');
-    await delCache('external_conductors_all');
-    await delCache('external_conductors_unassigned');
+    await delCache(CACHE_KEYS.BUSES ?? '');
+    await delCache(CACHE_KEYS.DRIVERS ?? '');
+    await delCache(CACHE_KEYS.CONDUCTORS ?? '');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {

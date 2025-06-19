@@ -2,11 +2,10 @@ import { fetchBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 import prisma from '@/client';
 
-const BUSES_CACHE_KEY = 'external_buses_unassigned';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUSES_CACHE_KEY = CACHE_KEYS.BUSES ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -39,7 +38,7 @@ const getHandler = async (request: NextRequest) => {
     // Filter out assigned buses from the external API (which uses busId)
     const unassignedBuses = buses.filter((bus: any) => !assignedBusIDs.has(String(bus.busId)));
 
-    await setCache(BUSES_CACHE_KEY, unassignedBuses, TTL_SECONDS);
+    await setCache(BUSES_CACHE_KEY, unassignedBuses);
 
     return NextResponse.json(
       {

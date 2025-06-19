@@ -3,10 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import prisma from '@/client';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 
-const DRIVERS_CACHE_KEY = 'external_drivers_unassigned';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const DRIVERS_CACHE_KEY =  CACHE_KEYS.DRIVERS ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -41,7 +40,7 @@ const getHandler = async (request: NextRequest) => {
     // Filter out assigned drivers from the external API (which uses driver_id)
     const unassignedDrivers = drivers.filter((driver: any) => !assignedDriverIDs.has(String(driver.driver_id)));
 
-    await setCache(DRIVERS_CACHE_KEY, unassignedDrivers, TTL_SECONDS);
+    await setCache(DRIVERS_CACHE_KEY, unassignedDrivers);
 
     return NextResponse.json(
       {

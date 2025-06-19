@@ -2,9 +2,9 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-const STOPS_CACHE_KEY = 'stops_list';
+const STOPS_CACHE_KEY = CACHE_KEYS.STOPS_LIST ?? '';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
