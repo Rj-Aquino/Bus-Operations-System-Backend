@@ -19,10 +19,18 @@ const getDashboardHandler = async (request: NextRequest) => {
     return NextResponse.json(cached, { status: 200 });
   }
 
-  // Get current month and year
+  // Get current and previous month/year
   const now = new Date();
   const month = now.getMonth() + 1; // JS months are 0-based
   const year = now.getFullYear();
+
+  // Previous month logic
+  let prevMonth = month - 1;
+  let prevYear = year;
+  if (prevMonth === 0) {
+    prevMonth = 12;
+    prevYear = year - 1;
+  }
 
   // 1. Bus Earnings (for the current month)
   const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
@@ -41,7 +49,7 @@ const getDashboardHandler = async (request: NextRequest) => {
     },
   });
 
-  // Prepare daily earnings array
+  // Prepare daily earnings array for current month
   const daysInMonth = new Date(year, month, 0).getDate();
   const dailyEarnings = Array(daysInMonth).fill(0);
 
@@ -49,6 +57,33 @@ const getDashboardHandler = async (request: NextRequest) => {
     if (trip.DispatchedAt && typeof trip.Sales === 'number') {
       const day = trip.DispatchedAt.getDate();
       dailyEarnings[day - 1] += trip.Sales;
+    }
+  }
+
+  // 1b. Bus Earnings (for the previous month)
+  const startOfPrevMonth = new Date(prevYear, prevMonth - 1, 1, 0, 0, 0, 0);
+  const endOfPrevMonth = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999);
+
+  const prevBusTrips = await prisma.busTrip.findMany({
+    where: {
+      DispatchedAt: {
+        gte: startOfPrevMonth,
+        lte: endOfPrevMonth,
+      },
+    },
+    select: {
+      DispatchedAt: true,
+      Sales: true,
+    },
+  });
+
+  const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const prevDailyEarnings = Array(daysInPrevMonth).fill(0);
+
+  for (const trip of prevBusTrips) {
+    if (trip.DispatchedAt && typeof trip.Sales === 'number') {
+      const day = trip.DispatchedAt.getDate();
+      prevDailyEarnings[day - 1] += trip.Sales;
     }
   }
 
@@ -68,7 +103,7 @@ const getDashboardHandler = async (request: NextRequest) => {
   );
 
   // 3. Top Performing Routes (by earnings for the month)
-  // First, get all routes
+  // Only get routes that are not deleted
   const allRoutes = await prisma.route.findMany({
     where: { IsDeleted: false },
     select: { RouteName: true },
@@ -114,7 +149,16 @@ const getDashboardHandler = async (request: NextRequest) => {
   }
 
   const responseData = {
-    earnings: { month, year, data: dailyEarnings },
+    earnings: {
+      month,
+      year,
+      data: dailyEarnings,
+      previous: {
+        month: prevMonth,
+        year: prevYear,
+        data: prevDailyEarnings,
+      },
+    },
     busStatus: statusCounts,
     topRoutes,
   };
