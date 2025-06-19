@@ -2,11 +2,10 @@ import { fetchConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 import prisma from '@/client';
 
-const CONDUCTORS_CACHE_KEY = 'external_conductors_unassigned';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -41,7 +40,7 @@ const getHandler = async (request: NextRequest) => {
     // Filter out assigned conductors from the external API (which uses conductor_id)
     const unassignedConductors = conductors.filter((conductor: any) => !assignedConductorIDs.has(String(conductor.conductor_id)));
 
-    await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors, TTL_SECONDS);
+    await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors);
 
     return NextResponse.json(
       {

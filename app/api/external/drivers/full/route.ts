@@ -2,10 +2,9 @@ import { fetchDrivers } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 
-const DRIVERS_CACHE_KEY = 'external_drivers_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -28,7 +27,7 @@ const getHandler = async (request: NextRequest) => {
   try {
     const drivers = await fetchDrivers();
 
-    await setCache(DRIVERS_CACHE_KEY, drivers, TTL_SECONDS);
+    await setCache(DRIVERS_CACHE_KEY, drivers);
 
     return NextResponse.json(
       {

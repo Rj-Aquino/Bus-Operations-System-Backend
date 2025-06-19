@@ -2,10 +2,9 @@ import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
 
-const ROUTES_CACHE_KEY = 'routes_list_full';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const ROUTES_CACHE_KEY_FULL = CACHE_KEYS.ROUTES_FULL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -14,7 +13,7 @@ const getHandler = async (request: NextRequest) => {
   }
 
   // Try cache first
-  const cached = await getCache<any[]>(ROUTES_CACHE_KEY);
+  const cached = await getCache<any[]>(ROUTES_CACHE_KEY_FULL);
   if (cached) {
     // Apply UpdatedAt/UpdatedBy logic to cached data
     const processed = cached.map(item => {
@@ -81,7 +80,7 @@ const getHandler = async (request: NextRequest) => {
       return item;
     });
 
-    await setCache(ROUTES_CACHE_KEY, processed, TTL_SECONDS);
+    await setCache(ROUTES_CACHE_KEY_FULL, processed);
     return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch full route details:', error);

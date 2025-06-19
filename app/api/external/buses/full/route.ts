@@ -2,10 +2,9 @@ import { fetchBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
-const BUSES_CACHE_KEY = 'external_buses_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUSES_CACHE_KEY = CACHE_KEYS.BUSES_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -28,7 +27,7 @@ const getHandler = async (request: NextRequest) => {
   try {
     const buses = await fetchBuses();
 
-    await setCache(BUSES_CACHE_KEY, buses, TTL_SECONDS);
+    await setCache(BUSES_CACHE_KEY, buses);
 
     return NextResponse.json(
       {

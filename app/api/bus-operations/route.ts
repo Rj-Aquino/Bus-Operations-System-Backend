@@ -3,10 +3,9 @@ import prisma from '@/client';
 import { BusOperationStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
 
-const BUS_OPERATIONS_CACHE_KEY = 'bus_operations_list';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUS_OPERATIONS_CACHE_KEY = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -170,7 +169,7 @@ const getHandler = async (request: NextRequest) => {
       };
     });
 
-    await setCache(cacheKey, result, TTL_SECONDS);
+    await setCache(cacheKey, result);
 
     return NextResponse.json(result);
   } catch (error) {

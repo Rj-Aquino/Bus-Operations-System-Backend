@@ -3,11 +3,20 @@ import { BusOperationStatus } from '@prisma/client';
 import { withCors } from '@/lib/withcors';
 import { authenticateRequest } from '@/lib/auth';
 import prisma from '@/client';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
+
+const DASHBOARD_CACHE_KEY = CACHE_KEYS.DASHBOARD ?? '';
 
 const getDashboardHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
     return NextResponse.json({ error }, { status });
+  }
+
+  // Try cache first
+  const cached = await getCache(DASHBOARD_CACHE_KEY);
+  if (cached) {
+    return NextResponse.json(cached, { status: 200 });
   }
 
   // Get current month and year
@@ -61,6 +70,7 @@ const getDashboardHandler = async (request: NextRequest) => {
   // 3. Top Performing Routes (by earnings for the month)
   // First, get all routes
   const allRoutes = await prisma.route.findMany({
+    where: { IsDeleted: false },
     select: { RouteName: true },
   });
 
@@ -103,11 +113,15 @@ const getDashboardHandler = async (request: NextRequest) => {
     }
   }
 
-  return NextResponse.json({
+  const responseData = {
     earnings: { month, year, data: dailyEarnings },
     busStatus: statusCounts,
     topRoutes,
-  });
+  };
+
+  await setCache(DASHBOARD_CACHE_KEY, responseData);
+
+  return NextResponse.json(responseData);
 };
 
 export const GET = withCors(getDashboardHandler);

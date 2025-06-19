@@ -3,10 +3,9 @@ import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
-import { getCache, setCache, delCache } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS} from '@/lib/cache';
 
-const ASSIGNMENTS_CACHE_KEY = 'regular_bus_assignments';
-const TTL_SECONDS = 60 * 60; // 1 hour cache
+const ASSIGNMENTS_CACHE_KEY = CACHE_KEYS.BUS_ASSIGNMENTS ?? '';
 
 const gethandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -126,7 +125,7 @@ const gethandler = async (request: NextRequest) => {
     });
 
     // 3. Cache the result
-    await setCache(ASSIGNMENTS_CACHE_KEY, processed, TTL_SECONDS);
+    await setCache(ASSIGNMENTS_CACHE_KEY, processed);
 
     return NextResponse.json(processed, { status: 200 });
   } catch (error) {
@@ -253,13 +252,13 @@ const postHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
-    await delCache('external_buses_all');
-    await delCache('external_buses_unassigned');
-    await delCache('external_drivers_all');
-    await delCache('external_drivers_unassigned');
-    await delCache('external_conductors_all');
-    await delCache('external_conductors_unassigned');
-    await delCache('bus_operations_list_NotReady');
+    await delCache(CACHE_KEYS.BUSES ?? '');
+    await delCache(CACHE_KEYS.DRIVERS ?? '');
+    await delCache(CACHE_KEYS.CONDUCTORS ?? '');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
+
     return NextResponse.json(result, { status: 201 });
 
   } catch (error) {

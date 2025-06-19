@@ -3,7 +3,7 @@ import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS} from '@/lib/cache';
 
 enum BusOperationStatus {
   NotStarted = 'NotStarted',
@@ -336,11 +336,11 @@ const putHandler = async (request: NextRequest) => {
     // Reset logic
     if (body.ResetCompleted) {
       const updatedFullRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
-      await delCache('bus_operations_list_InOperation');
-      await delCache('bus_operations_list_NotReady');
-      await delCache('bus_operations_list_NotStarted');
-      await delCache('bus_operations_ready_assignments');
-      await delCache('bus_operations_list');
+      await delCache(CACHE_KEYS.DASHBOARD ?? '');
+      await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+      await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+      await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+      await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
       return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
     }
 
@@ -387,11 +387,11 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const updatedFullRecord = await fetchFullRecord(BusAssignmentID);
-    await delCache('bus_operations_list_InOperation');
-    await delCache('bus_operations_list_NotReady');
-    await delCache('bus_operations_list_NotStarted');
-    await delCache('bus_operations_ready_assignments');
-    await delCache('bus_operations_list');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
     return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
 
   } catch (error: any) {
