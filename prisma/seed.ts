@@ -421,6 +421,104 @@ async function seedPercentage() {
   console.log('Percentage seeded');
 }
 
+async function seedCompletedBusAssignments() {
+  const routes = await prisma.route.findMany({ orderBy: { RouteID: 'asc' } });
+  const ticketTypes = await prisma.ticketType.findMany({ orderBy: { TicketTypeID: 'asc' } });
+
+  // Use today's date for all completed trips
+  const today = new Date();
+  today.setHours(8, 0, 0, 0); // 8:00 AM today
+
+  for (let i = 1; i <= 5; i++) {
+    const busAssignmentID = await generateFormattedID('BA');
+    const busID = `BUS-${(i + 10).toString().padStart(4, '0')}`; // BUS-0011 to BUS-0015
+    const driverID = `DRV-${(i + 20).toString().padStart(4, '0')}`; // DRV-0021 to DRV-0025
+    const conductorID = `CDT-${(i + 20).toString().padStart(4, '0')}`; // CDT-0021 to CDT-0025
+    const route = routes[i % routes.length];
+
+    // Create BusAssignment
+    await prisma.busAssignment.create({
+      data: {
+        BusAssignmentID: busAssignmentID,
+        BusID: busID,
+        RouteID: route.RouteID,
+        Battery: true,
+        Lights: true,
+        Oil: true,
+        Water: true,
+        Break: true,
+        Air: true,
+        Gas: true,
+        Engine: true,
+        TireCondition: true,
+        Self_Driver: true,
+        Self_Conductor: true,
+        IsDeleted: false,
+        Status: BusOperationStatus.InOperation,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+
+    // Create RegularBusAssignment
+    await prisma.regularBusAssignment.create({
+      data: {
+        RegularBusAssignmentID: busAssignmentID,
+        DriverID: driverID,
+        ConductorID: conductorID,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+
+    // Create BusTrip (completed) for today
+    const busTripID = await generateFormattedID('BT');
+    const dispatchedAt = new Date(today.getTime() + (i - 1) * 60 * 60 * 1000); // 8AM, 9AM, ..., 12PM
+    const completedAt = new Date(dispatchedAt.getTime() + 2 * 60 * 60 * 1000); // +2 hours
+    const sales = 1000 + i * 100;
+    const changeFund = 100 + i * 10;
+    const remarks = `Completed trip for bus ${busID}`;
+    const tripExpense = 200 + i * 10;
+
+    await prisma.busTrip.create({
+      data: {
+        BusTripID: busTripID,
+        RegularBusAssignmentID: busAssignmentID,
+        DispatchedAt: dispatchedAt,
+        CompletedAt: completedAt,
+        Sales: sales,
+        ChangeFund: changeFund,
+        Remarks: remarks,
+        TripExpense: tripExpense,
+        Payment_Method: 'Reimbursement',
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+
+    // Update RegularBusAssignment with LatestBusTripID
+    await prisma.regularBusAssignment.update({
+      where: { RegularBusAssignmentID: busAssignmentID },
+      data: { LatestBusTripID: busTripID },
+    });
+
+    // Create TicketBusTrip records for each ticket type
+    for (let t = 0; t < ticketTypes.length; t++) {
+      const ticketBusTripID = await generateFormattedID('TBT');
+      await prisma.ticketBusTrip.create({
+        data: {
+          TicketBusTripID: ticketBusTripID,
+          BusTripID: busTripID,
+          TicketTypeID: ticketTypes[t].TicketTypeID,
+          StartingIDNumber: 1000 + t * 100 + i * 10,
+          EndingIDNumber: 1099 + t * 100 + i * 10,
+          OverallEndingID: 1500 + t * 100 + i * 10,
+          CreatedBy: 'OP-2024-00123',
+        },
+      });
+    }
+  }
+
+  console.log('5 completed bus assignments, trips, and ticket bus trips seeded (for today)');
+}
+
 async function main() {
   await seedStops();
   await seedRoutes();
@@ -433,6 +531,7 @@ async function main() {
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();
+  await seedCompletedBusAssignments();
 }
 
 main()
