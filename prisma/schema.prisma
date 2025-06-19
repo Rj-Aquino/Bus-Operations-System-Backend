@@ -157,6 +157,11 @@ model RegularBusAssignment {
   UpdatedBy String?
 }
 
+enum PaymentMethod {
+  Reimbursement
+  Company_Cash
+}
+
 model BusTrip {
   BusTripID              String   @id
   RegularBusAssignmentID String
@@ -165,7 +170,8 @@ model BusTrip {
   Sales                  Float?
   ChangeFund             Float?
   Remarks                String? 
-  FuelExpense            Float?
+  TripExpense            Float?
+  Payment_Method         PaymentMethod?
 
   regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
   TicketBusTrips TicketBusTrip[]

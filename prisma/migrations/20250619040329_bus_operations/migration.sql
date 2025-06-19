@@ -1,6 +1,9 @@
 -- CreateEnum
 CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'NotReady', 'InOperation');
 
+-- CreateEnum
+CREATE TYPE "PaymentMethod" AS ENUM ('Reimbursement', 'Company_Cash');
+
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
     "QuotaPolicyID" TEXT NOT NULL,
@@ -132,7 +135,8 @@ CREATE TABLE "BusTrip" (
     "Sales" DOUBLE PRECISION,
     "ChangeFund" DOUBLE PRECISION,
     "Remarks" TEXT,
-    "FuelExpense" DOUBLE PRECISION,
+    "TripExpense" DOUBLE PRECISION,
+    "Payment_Method" "PaymentMethod",
     "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMP(3) NOT NULL,
     "CreatedBy" TEXT,

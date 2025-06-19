@@ -94,6 +94,9 @@ const getHandler = async (request: NextRequest) => {
                 CompletedAt: true,
                 Sales: true,
                 ChangeFund: true,
+                Remarks: true,
+                TripExpense: true, // <-- updated
+                Payment_Method: true, // <-- new
                 TicketBusTrips: {
                   select: {
                     TicketBusTripID: true,
