@@ -174,6 +174,30 @@ const postHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Conductor is already assigned.' }, { status: 400 });
     }
 
+    // 4. QuotaPolicy Date Overlap Validation
+    if (Array.isArray(data.QuotaPolicy)) {
+      type QuotaPolicyInput = { startDate?: string; StartDate?: string; endDate?: string; EndDate?: string; [key: string]: any };
+      const sorted = (data.QuotaPolicy as QuotaPolicyInput[])
+        .map((qp: QuotaPolicyInput) => {
+          if (!(qp.startDate || qp.StartDate) || !(qp.endDate || qp.EndDate)) {
+            throw new Error('All QuotaPolicy entries must have both startDate and endDate.');
+          }
+          return {
+            start: new Date(qp.startDate || qp.StartDate as string),
+            end: new Date(qp.endDate || qp.EndDate as string),
+          };
+        })
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (sorted[i].end > sorted[i + 1].start) {
+          return NextResponse.json(
+            { error: 'QuotaPolicy date ranges cannot overlap.' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const busAssignmentID = generateFormattedID('BA');
 
     await prisma.$transaction(async (tx) => {
@@ -198,11 +222,20 @@ const postHandler = async (request: NextRequest) => {
       // 2. Create all QuotaPolicies for this RegularBusAssignment
       for (const qp of data.QuotaPolicy) {
         const quotaPolicyID = generateFormattedID('QP');
+
+        // Set StartDate as usual
+        const startDate = qp.startDate ? new Date(qp.startDate) : undefined;
+        // Set EndDate to end of day if provided
+        const endDate = qp.endDate ? new Date(qp.endDate) : undefined;
+        if (endDate) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+
         const quotaPolicyData: any = {
           QuotaPolicyID: quotaPolicyID,
           RegularBusAssignmentID: busAssignmentID,
-          ...(qp.startDate && { StartDate: new Date(qp.startDate) }),
-          ...(qp.endDate && { EndDate: new Date(qp.endDate) }),
+          ...(startDate && { StartDate: startDate }),
+          ...(endDate && { EndDate: endDate }),
           CreatedBy: user?.employeeId || null,
         };
 

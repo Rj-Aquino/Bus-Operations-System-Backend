@@ -78,6 +78,31 @@ const putHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Conductor is already assigned.' }, { status: 400 });
     }
 
+    if (Array.isArray(data.quotaPolicies)) {
+    const sorted = data.quotaPolicies
+      .map((qp: any) => {
+        const start = qp.startDate || qp.StartDate;
+        const end = qp.endDate || qp.EndDate;
+        if (!start || !end) {
+          throw new Error('All QuotaPolicy entries must have both startDate and endDate.');
+        }
+        return {
+          start: new Date(start),
+          end: new Date(end),
+        };
+      })
+      .sort((a: { start: Date; end: Date }, b: { start: Date; end: Date }) => a.start.getTime() - b.start.getTime());
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].end > sorted[i + 1].start) {
+        return NextResponse.json(
+          { error: 'QuotaPolicy date ranges cannot overlap.' },
+          { status: 400 }
+        );
+      }
+    }
+}
+
     // Update BusAssignment and RegularBusAssignment
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
@@ -141,12 +166,16 @@ const putHandler = async (request: NextRequest) => {
         const quotaPolicyID = generateFormattedID("QP");
         // Accept both camelCase and PascalCase for dates
         const startDate = qp.startDate || qp.StartDate;
-        const endDate = qp.endDate || qp.EndDate;
+        const endDateRaw = qp.endDate || qp.EndDate;
+        const endDateObj: Date | undefined = endDateRaw ? new Date(endDateRaw) : undefined;
+        if (endDateObj) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
         const quotaPolicyData: any = {
           QuotaPolicyID: quotaPolicyID,
           RegularBusAssignmentID: newRegularBusAssignmentID!,
           ...(startDate && { StartDate: new Date(startDate) }),
-          ...(endDate && { EndDate: new Date(endDate) }),
+          ...(endDateObj && { EndDate: endDateObj }),
           CreatedBy: user?.employeeId || null,
           UpdatedBy: user?.employeeId || null,
         };
