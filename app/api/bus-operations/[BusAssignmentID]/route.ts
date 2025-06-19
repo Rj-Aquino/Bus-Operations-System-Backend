@@ -333,6 +333,42 @@ const putHandler = async (request: NextRequest) => {
       busAssignmentFields.Status = BusOperationStatus.NotReady;
     }
 
+    // Only validate QuotaPolicy if status is InOperation (either in body or current)
+    const statusToCheck = body.Status || currentAssignment.Status;
+    if (statusToCheck === BusOperationStatus.InOperation) {
+      let dispatchedAt: Date;
+      if ('DispatchedAt' in body && body.DispatchedAt) {
+        dispatchedAt = new Date(body.DispatchedAt);
+      } else {
+        dispatchedAt = new Date(); // Use current date/time if not provided
+        body.DispatchedAt = dispatchedAt.toISOString(); // Add to body for downstream use
+      }
+
+      console.log('[QuotaPolicy Validation] DispatchedAt:', dispatchedAt.toISOString());
+      console.log('[QuotaPolicy Validation] RegularBusAssignmentID:', currentAssignment.RegularBusAssignment?.RegularBusAssignmentID);
+
+      if (currentAssignment.RegularBusAssignment?.RegularBusAssignmentID) {
+        const hasPolicy = await prisma.quota_Policy.findFirst({
+          where: {
+            RegularBusAssignmentID: currentAssignment.RegularBusAssignment.RegularBusAssignmentID,
+            StartDate: { lte: dispatchedAt },
+            EndDate: { gte: dispatchedAt },
+          },
+          select: { QuotaPolicyID: true },
+        });
+
+        console.log('[QuotaPolicy Validation] Found Policy:', hasPolicy);
+
+        if (!hasPolicy) {
+          console.warn('[QuotaPolicy Validation] No active QuotaPolicy for this DispatchedAt!');
+          return NextResponse.json(
+            { error: 'Cannot dispatch: No active QuotaPolicy for the selected DispatchedAt date/time.' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Reset logic
     if (body.ResetCompleted) {
       const updatedFullRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
@@ -420,4 +456,3 @@ const putHandler = async (request: NextRequest) => {
 
 export const PUT = withCors(putHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
-
