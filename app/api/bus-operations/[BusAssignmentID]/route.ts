@@ -11,6 +11,8 @@ enum BusOperationStatus {
   NotReady = 'NotReady',
 }
 
+const ALLOWED_PAYMENT_METHODS = ['Reimbursement', 'Company_Cash'];
+
 type BusAssignmentUpdateData = Partial<{
   Status: BusOperationStatus;
   Battery: boolean;
@@ -115,7 +117,8 @@ async function fetchFullRecord(BusAssignmentID: string) {
               Sales: true,
               ChangeFund: true,
               Remarks: true,
-              FuelExpense: true,
+              TripExpense: true,
+              Payment_Method: true,
               TicketBusTrips: {
                 select: {
                   TicketBusTripID: true,
@@ -193,7 +196,8 @@ async function handleBusTrip(
       'ChangeFund' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||
-      'FuelExpense' in body
+      'TripExpense' in body ||
+      'Payment_Method' in body 
     ) {
       if (!regID) throw new Error('RegularBusAssignmentID is required to create a BusTrip.');
       const newBusTripID = await generateFormattedID('BT');
@@ -206,7 +210,8 @@ async function handleBusTrip(
           Sales: 'Sales' in body ? body.Sales : null,
           ChangeFund: 'ChangeFund' in body ? body.ChangeFund : null,
           Remarks: 'Remarks' in body ? body.Remarks : null,
-          FuelExpense: 'FuelExpense' in body ? body.FuelExpense : null,
+          TripExpense: 'TripExpense' in body ? body.TripExpense : null,
+          Payment_Method: 'Payment_Method' in body ? body.Payment_Method : null,
           UpdatedBy: user?.employeeId || null,
         },
       });
@@ -229,7 +234,8 @@ async function updateBusTripFields(targetBusTripID: string, body: any, user: any
   if ('DispatchedAt' in body) busTripUpdate.DispatchedAt = new Date(body.DispatchedAt);
   if ('CompletedAt' in body) busTripUpdate.CompletedAt = body.CompletedAt ? new Date(body.CompletedAt) : null;
   if ('Remarks' in body) busTripUpdate.Remarks = body.Remarks;
-  if ('FuelExpense' in body) busTripUpdate.FuelExpense = body.FuelExpense;
+  if ('TripExpense' in body) busTripUpdate.TripExpense = body.TripExpense;
+  if ('Payment_Method' in body) busTripUpdate.Payment_Method = body.Payment_Method;
   busTripUpdate.UpdatedBy = user?.employeeId || null;
 
   if (Object.keys(busTripUpdate).length > 0) {
@@ -291,6 +297,18 @@ const putHandler = async (request: NextRequest) => {
   try {
     const body = await request.json();
 
+    // Validate Payment_Method if present
+    if (
+      'Payment_Method' in body &&
+      body.Payment_Method != null &&
+      !ALLOWED_PAYMENT_METHODS.includes(body.Payment_Method)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid Payment_Method. Allowed values: Reimbursement, Company_Cash.' },
+        { status: 400 }
+      );
+    }
+
     if (body.Status && !Object.values(BusOperationStatus).includes(body.Status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
     }
@@ -322,6 +340,7 @@ const putHandler = async (request: NextRequest) => {
       await delCache('bus_operations_list_NotReady');
       await delCache('bus_operations_list_NotStarted');
       await delCache('bus_operations_ready_assignments');
+      await delCache('bus_operations_list');
       return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
     }
 
@@ -352,7 +371,8 @@ const putHandler = async (request: NextRequest) => {
       'DispatchedAt' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||
-      'FuelExpense' in body;
+      'TripExpense' in body ||
+      'Payment_Method' in body 
 
     if (!targetBusTripID && hasAnyBusTripField) {
       return NextResponse.json({ error: 'No valid BusTrip to update or create' }, { status: 400 });
@@ -371,6 +391,7 @@ const putHandler = async (request: NextRequest) => {
     await delCache('bus_operations_list_NotReady');
     await delCache('bus_operations_list_NotStarted');
     await delCache('bus_operations_ready_assignments');
+    await delCache('bus_operations_list');
     return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
 
   } catch (error: any) {
@@ -384,9 +405,19 @@ const putHandler = async (request: NextRequest) => {
         { status: 400 }
       );
     }
+    if (
+      error.code === 'P2000' &&
+      String(error.message).includes('Payment_Method')
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid Payment_Method. Allowed values: Reimbursement, Company_Cash.' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to update bus assignment' }, { status: 500 });
   }
 };
 
 export const PUT = withCors(putHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
+
