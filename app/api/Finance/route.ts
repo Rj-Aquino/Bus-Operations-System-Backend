@@ -20,15 +20,16 @@ const getAssignmentSummary = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
-  // Fetch assignments with needed IDs
+  // Fetch assignments with needed IDs and all BusTrips
   const assignments = await prisma.busAssignment.findMany({
     where: {
       IsDeleted: false,
-      Status: BusOperationStatus.InOperation,
       RegularBusAssignment: {
-        LatestBusTrip: {
-          TripExpense: { not: null },
-          Sales: { not: null },
+        BusTrips: {
+          some: {
+            TripExpense: { not: null },
+            Sales: { not: null },
+          },
         },
       },
     },
@@ -40,7 +41,11 @@ const getAssignmentSummary = async (request: NextRequest) => {
         select: {
           DriverID: true,
           ConductorID: true,
-          LatestBusTrip: {
+          BusTrips: {
+            where: {
+              TripExpense: { not: null },
+              Sales: { not: null },
+            },
             select: {
               DispatchedAt: true,
               TripExpense: true,
@@ -66,26 +71,30 @@ const getAssignmentSummary = async (request: NextRequest) => {
   const conductorIDs = [...new Set(assignments.map(a => a.RegularBusAssignment?.ConductorID).filter(Boolean))];
   const busIDs = [...new Set(assignments.map(a => a.BusID).filter(Boolean))];
 
-    // Fetch external data
-    const [drivers, conductors, buses] = await Promise.all([
-      fetchExternal(`${process.env.BASE_URL}/api/external/drivers/full`, token ?? ''),
-      fetchExternal(`${process.env.BASE_URL}/api/external/conductors/full`, token ?? ''),
-      fetchExternal(`${process.env.BASE_URL}/api/external/buses/full`, token ?? ''),
-    ]);
+  // Fetch external data
+  const [drivers, conductors, buses] = await Promise.all([
+    fetchExternal(`${process.env.BASE_URL}/api/external/drivers/full`, token ?? ''),
+    fetchExternal(`${process.env.BASE_URL}/api/external/conductors/full`, token ?? ''),
+    fetchExternal(`${process.env.BASE_URL}/api/external/buses/full`, token ?? ''),
+  ]);
 
-    console.log(drivers, conductors, buses);
+  const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
+  const conductorsArr = Array.isArray(conductors) ? conductors : conductors?.data ?? [];
+  const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
 
-    const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
-    const conductorsArr = Array.isArray(conductors) ? conductors : conductors?.data ?? [];
-    const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
+  const driverMap = Object.fromEntries(driversArr.map((d: any) => [d.driver_id, d]));
+  const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.conductor_id, c]));
+  const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
 
-    const driverMap = Object.fromEntries(driversArr.map((d: any) => [d.driver_id, d]));
-    const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.conductor_id, c]));
-    const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
+  // Map to the required format
+  const result = assignments.map(a => {
+    // Find the latest BusTrip by DispatchedAt
+    const busTrips = a.RegularBusAssignment?.BusTrips || [];
+    const trip = busTrips.length
+      ? busTrips.reduce((latest, curr) =>
+          (!latest.DispatchedAt || (curr.DispatchedAt && curr.DispatchedAt > latest.DispatchedAt)) ? curr : latest, busTrips[0])
+      : null;
 
-    // Map to the required format
-    const result = assignments.map(a => {
-    const trip = a.RegularBusAssignment?.LatestBusTrip;
     const quotaPolicies = a.RegularBusAssignment?.QuotaPolicies || [];
 
     // Find the quota policy where DispatchedAt is within StartDate and EndDate
