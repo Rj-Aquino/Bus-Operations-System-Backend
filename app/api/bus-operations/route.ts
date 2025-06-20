@@ -4,6 +4,7 @@ import { BusOperationStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
+import { tr } from 'zod/v4/locales';
 
 const BUS_OPERATIONS_CACHE_KEY = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
 
@@ -101,6 +102,7 @@ const getHandler = async (request: NextRequest) => {
                     TicketBusTripID: true,
                     StartingIDNumber: true,
                     EndingIDNumber: true,
+                    OverallEndingID: true,
                     TicketType: {
                       select: {
                         TicketTypeID: true,

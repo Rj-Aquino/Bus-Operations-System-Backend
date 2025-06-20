@@ -73,9 +73,17 @@ async function resetAssignment(BusAssignmentID: string, busAssignmentFields: Bus
     include: { RegularBusAssignment: true },
   });
 
+  // Update CompletedAt to today if there is a LatestBusTrip
   if (updatedBusAssignment.RegularBusAssignment) {
+    const reg = updatedBusAssignment.RegularBusAssignment;
+    if (reg.LatestBusTripID) {
+      await prisma.busTrip.update({
+        where: { BusTripID: reg.LatestBusTripID },
+        data: { CompletedAt: new Date(), UpdatedBy: user?.employeeId || null },
+      });
+    }
     await prisma.regularBusAssignment.update({
-      where: { RegularBusAssignmentID: updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID },
+      where: { RegularBusAssignmentID: reg.RegularBusAssignmentID },
       data: { LatestBusTripID: null, UpdatedBy: user?.employeeId || null },
     });
   }
@@ -369,17 +377,6 @@ const putHandler = async (request: NextRequest) => {
       }
     }
 
-    // Reset logic
-    if (body.ResetCompleted) {
-      const updatedFullRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
-      await delCache(CACHE_KEYS.DASHBOARD ?? '');
-      await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
-      await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
-      await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
-      await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
-      return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
-    }
-
     const updatedBusAssignment = await prisma.busAssignment.update({
       where: { BusAssignmentID },
       data: {
@@ -428,6 +425,12 @@ const putHandler = async (request: NextRequest) => {
     await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
+
+    if (body.ResetCompleted) {
+      const resetRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
+      return NextResponse.json(applyAuditLogic(resetRecord), { status: 200 });
+    }
+
     return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
 
   } catch (error: any) {
