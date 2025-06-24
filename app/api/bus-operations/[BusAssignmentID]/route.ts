@@ -123,7 +123,7 @@ async function fetchFullRecord(BusAssignmentID: string) {
               DispatchedAt: true,
               CompletedAt: true,
               Sales: true,
-              ChangeFund: true,
+              PettyCash: true,
               Remarks: true,
               TripExpense: true,
               Payment_Method: true,
@@ -201,7 +201,7 @@ async function handleBusTrip(
     if (
       'DispatchedAt' in body ||
       'Sales' in body ||
-      'ChangeFund' in body ||
+      'PettyCash' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||
       'TripExpense' in body ||
@@ -216,7 +216,7 @@ async function handleBusTrip(
           DispatchedAt: 'DispatchedAt' in body && body.DispatchedAt ? new Date(body.DispatchedAt) : null,
           CompletedAt: 'CompletedAt' in body && body.CompletedAt ? new Date(body.CompletedAt) : null,
           Sales: 'Sales' in body ? body.Sales : null,
-          ChangeFund: 'ChangeFund' in body ? body.ChangeFund : null,
+          PettyCash: 'PettyCash' in body ? body.PettyCash : null,
           Remarks: 'Remarks' in body ? body.Remarks : null,
           TripExpense: 'TripExpense' in body ? body.TripExpense : null,
           Payment_Method: 'Payment_Method' in body ? body.Payment_Method : null,
@@ -238,7 +238,7 @@ async function handleBusTrip(
 async function updateBusTripFields(targetBusTripID: string, body: any, user: any) {
   const busTripUpdate: any = {};
   if ('Sales' in body) busTripUpdate.Sales = body.Sales;
-  if ('ChangeFund' in body) busTripUpdate.ChangeFund = body.ChangeFund;
+  if ('PettyCash' in body) busTripUpdate.PettyCash = body.PettyCash;
   if ('DispatchedAt' in body) busTripUpdate.DispatchedAt = new Date(body.DispatchedAt);
   if ('CompletedAt' in body) busTripUpdate.CompletedAt = body.CompletedAt ? new Date(body.CompletedAt) : null;
   if ('Remarks' in body) busTripUpdate.Remarks = body.Remarks;
@@ -400,7 +400,7 @@ const putHandler = async (request: NextRequest) => {
     // Only show error if user tried to update BusTrip fields but no BusTrip exists
     const hasAnyBusTripField =
       'Sales' in body ||
-      'ChangeFund' in body ||
+      'PettyCash' in body ||
       'DispatchedAt' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||

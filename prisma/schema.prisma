@@ -168,7 +168,7 @@ model BusTrip {
   DispatchedAt           DateTime?
   CompletedAt            DateTime?
   Sales                  Float?
-  ChangeFund             Float?
+  PettyCash             Float?
   Remarks                String? 
   TripExpense            Float?
   Payment_Method         PaymentMethod?
