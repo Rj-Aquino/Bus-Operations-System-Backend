@@ -12,6 +12,7 @@ const allowedOrigins = [
   'http://192.168.0.132:3000',
   'http://192.168.0.133:3000',
   'http://192.168.0.133:3000',
+  'http://192.168.1.111:3000',
 ];
 
 export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {

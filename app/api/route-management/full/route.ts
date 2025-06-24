@@ -46,12 +46,16 @@ const getHandler = async (request: NextRequest) => {
           select: {
             StopID: true,
             StopName: true,
+            longitude: true,
+            latitude: true,
           },
         },
         EndStop: {
           select: {
             StopID: true,
             StopName: true,
+            longitude: true,
+            latitude: true,
           },
         },
         RouteStops: {
@@ -61,6 +65,8 @@ const getHandler = async (request: NextRequest) => {
               select: {
                 StopID: true,
                 StopName: true,
+                longitude: true,
+                latitude: true,
               },
             },
           },
