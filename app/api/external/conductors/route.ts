@@ -1,4 +1,3 @@
-import { fetchConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
@@ -6,6 +5,12 @@ import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 import prisma from '@/client';
 
 const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS ?? '';
+
+async function fetchConductors() {
+  const res = await fetch('http://192.168.1.140:3001/employees/ops?role=conductor');
+  if (!res.ok) throw new Error('Failed to fetch conductors');
+  return res.json();
+}
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -26,7 +31,15 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const conductors = await fetchConductors();
+    const employees = await fetchConductors();
+
+    // Map to required conductor fields
+    const conductors = employees.map((emp: any) => ({
+      conductor_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
 
     // Get all assigned (not deleted) ConductorIDs from the database
     const assignedConductors = await prisma.regularBusAssignment.findMany({
@@ -37,7 +50,7 @@ const getHandler = async (request: NextRequest) => {
     });
     const assignedConductorIDs = new Set(assignedConductors.map(c => String(c.ConductorID)));
 
-    // Filter out assigned conductors from the external API (which uses conductor_id)
+    // Filter out assigned conductors
     const unassignedConductors = conductors.filter((conductor: any) => !assignedConductorIDs.has(String(conductor.conductor_id)));
 
     await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors);

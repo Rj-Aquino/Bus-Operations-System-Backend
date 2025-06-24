@@ -1,10 +1,16 @@
-import { fetchConductors } from '@/lib/fetchExternal';
+//import { fetchConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
 const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS_ALL ?? '';
+
+async function fetchConductors() {
+  const res = await fetch('http://192.168.1.140:3001/employees/ops?role=conductor');
+  if (!res.ok) throw new Error('Failed to fetch conductors');
+  return res.json();
+}
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -25,7 +31,15 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const conductors = await fetchConductors();
+    const employees = await fetchConductors();
+
+    // Map to required conductor fields
+    const conductors = employees.map((emp: any) => ({
+      conductor_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
 
     await setCache(CONDUCTORS_CACHE_KEY, conductors);
 

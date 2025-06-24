@@ -1,10 +1,16 @@
-import { fetchDrivers } from '@/lib/fetchExternal';
+//import { fetchDrivers } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 
 const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS_ALL ?? '';
+
+async function fetchDrivers() {
+  const res = await fetch('http://192.168.1.140:3001/employees/ops?role=driver');
+  if (!res.ok) throw new Error('Failed to fetch drivers');
+  return res.json();
+}
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -25,7 +31,15 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const drivers = await fetchDrivers();
+    const employees = await fetchDrivers();
+
+    // Map to required driver fields
+    const drivers = employees.map((emp: any) => ({
+      driver_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
 
     await setCache(DRIVERS_CACHE_KEY, drivers);
 
