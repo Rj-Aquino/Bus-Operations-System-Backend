@@ -133,7 +133,7 @@ CREATE TABLE "BusTrip" (
     "DispatchedAt" TIMESTAMP(3),
     "CompletedAt" TIMESTAMP(3),
     "Sales" DOUBLE PRECISION,
-    "ChangeFund" DOUBLE PRECISION,
+    "PettyCash" DOUBLE PRECISION,
     "Remarks" TEXT,
     "TripExpense" DOUBLE PRECISION,
     "Payment_Method" "PaymentMethod",

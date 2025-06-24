@@ -93,7 +93,7 @@ const getHandler = async (request: NextRequest) => {
                 DispatchedAt: true,
                 CompletedAt: true,
                 Sales: true,
-                ChangeFund: true,
+                PettyCash: true,
                 Remarks: true,
                 TripExpense: true, // <-- updated
                 Payment_Method: true, // <-- new

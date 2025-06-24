@@ -330,7 +330,7 @@ async function seedBusTrips(ids: {
       RegularBusAssignmentID: ids.busAssignmentID_InOperation,
       DispatchedAt: new Date('2025-07-04T10:00:00Z'),
       CompletedAt: null,
-      ChangeFund: 150,
+      PettyCash: 150,
       CreatedBy: 'OP-2024-00123',
     },
   });
@@ -519,7 +519,7 @@ async function seedCompletedBusAssignments() {
     const dispatchedAt = new Date(today.getTime() + (i - 1) * 60 * 60 * 1000); // 8AM, 9AM, ..., 12PM
     const completedAt = new Date(dispatchedAt.getTime() + 2 * 60 * 60 * 1000); // +2 hours
     const sales = 1000 + i * 100;
-    const changeFund = 100 + i * 10;
+    const pettyCash = 100 + i * 10;
     const remarks = `Completed trip for bus ${busID}`;
     const tripExpense = 200 + i * 10;
 
@@ -530,7 +530,7 @@ async function seedCompletedBusAssignments() {
         DispatchedAt: dispatchedAt,
         CompletedAt: completedAt,
         Sales: sales,
-        ChangeFund: changeFund,
+        PettyCash: pettyCash,
         Remarks: remarks,
         TripExpense: tripExpense,
         Payment_Method: 'Reimbursement',
