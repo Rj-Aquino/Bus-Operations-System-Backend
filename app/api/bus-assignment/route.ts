@@ -60,7 +60,7 @@ const gethandler = async (request: NextRequest) => {
             Percentage: { select: { Percentage: true } },
           },
         },
-        LatestBusTrip: { 
+        BusTrips: { 
         select: {
           BusTripID: true,
           DispatchedAt: true,
