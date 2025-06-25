@@ -7,7 +7,7 @@ import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS ?? '';
 
 async function fetchDrivers() {
-  const res = await fetch('http://192.168.1.140:3001/employees/ops?role=driver');
+  const res = await fetch(process.env.DRIVER_URL as string);
   if (!res.ok) throw new Error('Failed to fetch drivers');
   return res.json();
 }

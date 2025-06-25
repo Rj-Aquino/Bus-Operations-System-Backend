@@ -6,6 +6,12 @@ import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
 const BUSES_CACHE_KEY = CACHE_KEYS.BUSES_ALL ?? '';
 
+async function fetchNewBuses() {
+  const res = await fetch(process.env.BUS_URL as string);
+  if (!res.ok) throw new Error('Failed to fetch buses');
+  return res.json();
+}
+
 const getHandler = async (request: NextRequest) => {
   // const { user, error, status } = await authenticateRequest(request);
   // if (error) {
@@ -25,14 +31,25 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const buses = await fetchBuses();
+    const buses = await fetchNewBuses();
 
-    await setCache(BUSES_CACHE_KEY, buses);
+    // Map new API structure to old format
+    const mappedBuses = (buses.buses ?? []).map((bus: any) => ({
+      busId: bus.bus_id,
+      license_plate: bus.plate_number,
+      body_number: bus.body_number,
+      type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+      capacity: bus.seat_capacity,
+      //body_builder: bus.body_builder,
+      // route: bus.route, // old only, not present in new
+    }));
+
+    await setCache(BUSES_CACHE_KEY, mappedBuses);
 
     return NextResponse.json(
       {
-        message: buses.length ? undefined : 'No buses found',
-        data: buses,
+        message: mappedBuses.length ? undefined : 'No buses found',
+        data: mappedBuses,
       },
       { status: 200 }
     );

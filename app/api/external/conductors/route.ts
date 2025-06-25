@@ -7,7 +7,7 @@ import prisma from '@/client';
 const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS ?? '';
 
 async function fetchConductors() {
-  const res = await fetch('http://192.168.1.140:3001/employees/ops?role=conductor');
+  const res = await fetch(process.env.CONDUCTOR_URL as string);
   if (!res.ok) throw new Error('Failed to fetch conductors');
   return res.json();
 }

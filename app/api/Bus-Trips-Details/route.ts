@@ -133,6 +133,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
         conductor_name: conductor?.name ?? null,
         bus_plate_number: bus?.license_plate ?? null,
         bus_type: bus?.type ?? null,
+        body_number: bus?.body_number ?? null,
       };
     });
   });

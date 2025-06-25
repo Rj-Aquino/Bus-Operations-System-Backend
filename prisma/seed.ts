@@ -176,33 +176,33 @@ async function seedBusAssignments() {
   const assignments = [
     {
       id: ids.busAssignmentID_NotStarted,
-      busID: 'BUS-0001',
+      busID: 'BUS-00001',
       routeID: routeID1,
       date: '2025-04-15',
       status: BusOperationStatus.NotStarted,
       allChecks: true,
-      driverID: 'EMP2024-0007',
-      conductorID: 'EMP2024-0018',
+      driverID: 'EMP2024-P8-001',
+      conductorID: 'EMP2024-P9-001',
     },
     {
       id: ids.busAssignmentID_NotReady,
-      busID: 'BUS-0002',
+      busID: 'BUS-00002',
       routeID: routeID2,
       date: '2025-04-16',
       status: BusOperationStatus.NotReady,
       allChecks: false,
-      driverID: 'EMP2024-0008',
-      conductorID: 'EMP2024-0019',
+      driverID: 'EMP2024-P8-002',
+      conductorID: 'EMP2024-P9-002',
     },
     {
       id: ids.busAssignmentID_InOperation,
-      busID: 'BUS-0003',
+      busID: 'BUS-00003',
       routeID: routeID1,
       date: '2025-04-17',
       status: BusOperationStatus.InOperation,
       allChecks: true,
-      driverID: 'EMP2024-0009',
-      conductorID: 'EMP2024-0020',
+      driverID: 'EMP2024-P8-003',
+      conductorID: 'EMP2024-P9-003',
     },
   ];
 
@@ -291,8 +291,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotStarted,
-      DriverID: 'EMP2024-0007',
-      ConductorID: 'EMP2024-0018',
+      DriverID: 'EMP2024-P8-001',
+      ConductorID: 'EMP2024-P9-001',
       LatestBusTripID: null,
       CreatedBy: 'OP-2024-00123',
     },
@@ -300,8 +300,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotReady,
-      DriverID: 'EMP2024-0008',
-      ConductorID: 'EMP2024-0019',
+      DriverID: 'EMP2024-P8-002',
+      ConductorID: 'EMP2024-P9-002',
       LatestBusTripID: null,
       CreatedBy: 'OP-2024-00123',
     },
@@ -309,8 +309,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_InOperation,
-      DriverID: 'EMP2024-0009',
-      ConductorID: 'EMP2024-0020',
+      DriverID: 'EMP2024-P8-003',
+      ConductorID: 'EMP2024-P9-003',
       CreatedBy: 'OP-2024-00123',
       // LatestBusTripID will be set after BusTrip creation
     },
@@ -438,9 +438,9 @@ async function seedCompletedBusAssignments() {
 
   for (let i = 1; i <= 5; i++) {
     const busAssignmentID = await generateFormattedID('BA');
-    const busID = `BUS-${(i + 10).toString().padStart(4, '0')}`; // BUS-0011 to BUS-0015
-    const driverID = `EMP2024-${(i + 9).toString().padStart(4, '0')}`; 
-    const conductorID = `EMP2024-${(i + 20).toString().padStart(4, '0')}`; 
+    const busID = `BUS-${(i + 10).toString().padStart(5, '0')}`; // BUS-00011 to BUS-00015
+    const driverID = `EMP2024-P8-${(i + 5).toString().padStart(3, '0')}`; 
+    const conductorID = `EMP2024-P9-${(i + 5).toString().padStart(3, '0')}`; 
     const route = routes[i % routes.length];
 
     // Create BusAssignment

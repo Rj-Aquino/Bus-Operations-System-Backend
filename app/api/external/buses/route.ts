@@ -7,11 +7,17 @@ import prisma from '@/client';
 
 const BUSES_CACHE_KEY = CACHE_KEYS.BUSES ?? '';
 
+async function fetchNewBuses() {
+  const res = await fetch(process.env.BUS_URL as string);
+  if (!res.ok) throw new Error('Failed to fetch buses');
+  return res.json();
+}
+
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(BUSES_CACHE_KEY);
@@ -26,7 +32,17 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const buses = await fetchBuses();
+    // Fetch from new endpoint
+    const buses = await fetchNewBuses();
+
+    const mappedBuses = (buses.buses ?? []).map((bus: any) => ({
+      busId: bus.bus_id,
+      license_plate: bus.plate_number,
+      body_number: bus.body_number,
+      type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+      capacity: bus.seat_capacity,
+      //body_builder: bus.body_builder,
+    }));
 
     // Get all assigned (not deleted) BusIDs from the database
     const assignedBuses = await prisma.busAssignment.findMany({
@@ -35,8 +51,8 @@ const getHandler = async (request: NextRequest) => {
     });
     const assignedBusIDs = new Set(assignedBuses.map(b => String(b.BusID)));
 
-    // Filter out assigned buses from the external API (which uses busId)
-    const unassignedBuses = buses.filter((bus: any) => !assignedBusIDs.has(String(bus.busId)));
+    // Filter out assigned buses
+    const unassignedBuses = mappedBuses.filter((bus: any) => !assignedBusIDs.has(String(bus.busId)));
 
     await setCache(BUSES_CACHE_KEY, unassignedBuses);
 
