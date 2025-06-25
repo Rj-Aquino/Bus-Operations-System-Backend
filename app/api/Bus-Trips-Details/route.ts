@@ -16,9 +16,9 @@ async function fetchExternal(url: string, token: string) {
 
 const getAssignmentSummary = async (request: NextRequest) => {
   const { error, token, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Fetch assignments with needed IDs and all BusTrips
   const assignments = await prisma.busAssignment.findMany({
@@ -87,61 +87,56 @@ const getAssignmentSummary = async (request: NextRequest) => {
   const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
 
   // Map to the required format
-  const result = assignments.map(a => {
-    // Find the latest BusTrip by DispatchedAt
+  const result = assignments.flatMap(a => {
     const busTrips = a.RegularBusAssignment?.BusTrips || [];
-    const trip = busTrips.length
-      ? busTrips.reduce((latest, curr) =>
-          (!latest.DispatchedAt || (curr.DispatchedAt && curr.DispatchedAt > latest.DispatchedAt)) ? curr : latest, busTrips[0])
-      : null;
-
     const quotaPolicies = a.RegularBusAssignment?.QuotaPolicies || [];
-
-    // Find the quota policy where DispatchedAt is within StartDate and EndDate
-    let quotaPolicy = null;
-    if (trip?.DispatchedAt) {
-      quotaPolicy = quotaPolicies.find(qp =>
-        qp.StartDate && qp.EndDate &&
-        trip.DispatchedAt != null &&
-        trip.DispatchedAt >= qp.StartDate &&
-        trip.DispatchedAt <= qp.EndDate
-      );
-    }
-
-    let assignment_type = null;
-    let assignment_value = null;
-    if (quotaPolicy?.Fixed) {
-      assignment_type = 'Boundary';
-      assignment_value = quotaPolicy.Fixed.Quota;
-    } else if (quotaPolicy?.Percentage) {
-      assignment_type = 'Percentage';
-      assignment_value = quotaPolicy.Percentage.Percentage;
-    } else {
-      assignment_type = 'Bus Rental';
-      assignment_value = null;
-    }
-
     // External info
     const driver = driverMap[a.RegularBusAssignment?.DriverID ?? ''];
     const conductor = conductorMap[a.RegularBusAssignment?.ConductorID ?? ''];
     const bus = busMap[a.BusID ?? ''];
 
-    return {
-      assignment_id: a.BusAssignmentID,
-      bus_route: a.Route?.RouteName || null,
-      date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
-      trip_fuel_expense: trip?.TripExpense ?? null,
-      trip_revenue: trip?.Sales ?? null,
-      is_expense_recorded: trip?.TripExpense != null,
-      is_revenue_recorded: trip?.Sales != null,
-      assignment_type,
-      assignment_value,
-      payment_method: trip?.Payment_Method ?? null,
-      driver_name: driver?.name ?? null,
-      conductor_name: conductor?.name ?? null,
-      bus_plate_number: bus?.license_plate ?? null,
-      bus_type: bus?.type ?? null,
-    };
+    return busTrips.map(trip => {
+      // Find the quota policy where DispatchedAt is within StartDate and EndDate
+      let quotaPolicy = null;
+      if (trip?.DispatchedAt) {
+        quotaPolicy = quotaPolicies.find(qp =>
+          qp.StartDate && qp.EndDate &&
+          trip.DispatchedAt != null &&
+          trip.DispatchedAt >= qp.StartDate &&
+          trip.DispatchedAt <= qp.EndDate
+        );
+      }
+
+      let assignment_type = null;
+      let assignment_value = null;
+      if (quotaPolicy?.Fixed) {
+        assignment_type = 'Boundary';
+        assignment_value = quotaPolicy.Fixed.Quota;
+      } else if (quotaPolicy?.Percentage) {
+        assignment_type = 'Percentage';
+        assignment_value = quotaPolicy.Percentage.Percentage;
+      } else {
+        assignment_type = 'Bus Rental';
+        assignment_value = null;
+      }
+
+      return {
+        assignment_id: a.BusAssignmentID,
+        bus_route: a.Route?.RouteName || null,
+        date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
+        trip_fuel_expense: trip?.TripExpense ?? null,
+        trip_revenue: trip?.Sales ?? null,
+        is_expense_recorded: trip?.TripExpense != null,
+        is_revenue_recorded: trip?.Sales != null,
+        assignment_type,
+        assignment_value,
+        payment_method: trip?.Payment_Method ?? null,
+        driver_name: driver?.name ?? null,
+        conductor_name: conductor?.name ?? null,
+        bus_plate_number: bus?.license_plate ?? null,
+        bus_type: bus?.type ?? null,
+      };
+    });
   });
 
   return NextResponse.json(result, { status: 200 });

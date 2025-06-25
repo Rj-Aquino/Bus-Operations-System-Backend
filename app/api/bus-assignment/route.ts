@@ -65,6 +65,7 @@ const gethandler = async (request: NextRequest) => {
           BusTripID: true,
           DispatchedAt: true,
           CompletedAt: true,
+          PettyCash: true,
           Sales: true,
           TripExpense: true,
           Payment_Method: true,

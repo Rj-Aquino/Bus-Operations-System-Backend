@@ -7,10 +7,10 @@ import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 const BUSES_CACHE_KEY = CACHE_KEYS.BUSES_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(BUSES_CACHE_KEY);

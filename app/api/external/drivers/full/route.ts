@@ -13,10 +13,10 @@ async function fetchDrivers() {
 }
 
 const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);

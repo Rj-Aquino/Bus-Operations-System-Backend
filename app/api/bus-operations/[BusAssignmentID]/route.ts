@@ -255,6 +255,19 @@ async function updateBusTripFields(targetBusTripID: string, body: any, user: any
 }
 
 async function updateTicketBusTrips(targetBusTripID: string, ticketBusTrips: any[], allTrue: boolean, BusAssignmentID: string, user: any) {
+  
+  // Validate EndingIDNumber is between StartingIDNumber and OverallEndingID
+  for (const tbt of ticketBusTrips) {
+    if (
+      tbt.StartingIDNumber != null &&
+      tbt.EndingIDNumber != null &&
+      tbt.OverallEndingID != null &&
+      (tbt.EndingIDNumber < tbt.StartingIDNumber || tbt.EndingIDNumber > tbt.OverallEndingID)
+    ) {
+      throw new Error('EndingIDNumber must be between StartingIDNumber and OverallEndingID.');
+    }
+  }
+    
   // 1. Delete all existing TicketBusTrips for this BusTrip
   await prisma.ticketBusTrip.deleteMany({
     where: { BusTripID: targetBusTripID }
@@ -435,6 +448,14 @@ const putHandler = async (request: NextRequest) => {
 
   } catch (error: any) {
     console.error('Update error:', error);
+    if (
+      error.message === 'EndingIDNumber must be between StartingIDNumber and OverallEndingID.'
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
     if (
       error.code === 'P2003' &&
       String(error.message).includes('TicketBusTripAssignment_TicketTypeID_fkey')
