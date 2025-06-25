@@ -126,8 +126,6 @@ const getAssignmentSummary = async (request: NextRequest) => {
         date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
         trip_fuel_expense: trip?.TripExpense ?? null,
         trip_revenue: trip?.Sales ?? null,
-        is_expense_recorded: trip?.TripExpense != null,
-        is_revenue_recorded: trip?.Sales != null,
         assignment_type,
         assignment_value,
         payment_method: trip?.Payment_Method ?? null,
