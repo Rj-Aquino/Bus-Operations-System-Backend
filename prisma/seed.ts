@@ -57,6 +57,22 @@ const stopData2 = [
   { StopName: "PITX Arrivals/Transfers", latitude: "14.826", longitude: "121.052" },
 ];
 
+const busIDs = [
+  'BUS-00001', 'BUS-00002', 'BUS-00003', 'BUS-00004', 'BUS-00005',
+  'BUS-00006', 'BUS-00007', 'BUS-00008', 'BUS-00009', 'BUS-00010',
+  'BUS-00011', 'BUS-00012', 'BUS-00013', 'BUS-00014', 'BUS-00015'
+];
+
+const driverIDs = [
+  'EMP2024-P8-001', 'EMP2024-P8-002', 'EMP2024-P8-003', 'EMP2024-P8-004', 'EMP2024-P8-005',
+  'EMP2024-P8-006', 'EMP2024-P8-007', 'EMP2024-P8-008', 'EMP2024-P8-009', 'EMP2024-P8-010'
+];
+
+const conductorIDs = [
+  'EMP2024-P9-001', 'EMP2024-P9-002', 'EMP2024-P9-003', 'EMP2024-P9-004', 'EMP2024-P9-005',
+  'EMP2024-P9-006', 'EMP2024-P9-007', 'EMP2024-P9-008', 'EMP2024-P9-009', 'EMP2024-P9-010'
+];
+
 async function seedStops() {
   const combinedUniqueStops = Array.from(
     new Map([...stopData1, ...stopData2].map(stop => [stop.StopName, stop])).values()
@@ -176,33 +192,33 @@ async function seedBusAssignments() {
   const assignments = [
     {
       id: ids.busAssignmentID_NotStarted,
-      busID: 'BUS-00001',
+      busID: busIDs[0],
       routeID: routeID1,
       date: '2025-04-15',
       status: BusOperationStatus.NotStarted,
       allChecks: true,
-      driverID: 'EMP2024-P8-001',
-      conductorID: 'EMP2024-P9-001',
+      driverID: driverIDs[0],
+      conductorID: conductorIDs[0],
     },
     {
       id: ids.busAssignmentID_NotReady,
-      busID: 'BUS-00002',
+      busID: busIDs[1],
       routeID: routeID2,
       date: '2025-04-16',
       status: BusOperationStatus.NotReady,
       allChecks: false,
-      driverID: 'EMP2024-P8-002',
-      conductorID: 'EMP2024-P9-002',
+      driverID: driverIDs[1],
+      conductorID: conductorIDs[1],
     },
     {
       id: ids.busAssignmentID_InOperation,
-      busID: 'BUS-00003',
+      busID: busIDs[2],
       routeID: routeID1,
       date: '2025-04-17',
       status: BusOperationStatus.InOperation,
       allChecks: true,
-      driverID: 'EMP2024-P8-003',
-      conductorID: 'EMP2024-P9-003',
+      driverID: driverIDs[2],
+      conductorID: conductorIDs[2],
     },
   ];
 
@@ -291,8 +307,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotStarted,
-      DriverID: 'EMP2024-P8-001',
-      ConductorID: 'EMP2024-P9-001',
+      DriverID: driverIDs[0],
+      ConductorID: conductorIDs[0],
       LatestBusTripID: null,
       CreatedBy: 'OP-2024-00123',
     },
@@ -300,8 +316,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_NotReady,
-      DriverID: 'EMP2024-P8-002',
-      ConductorID: 'EMP2024-P9-002',
+      DriverID: driverIDs[1],
+      ConductorID: conductorIDs[1],
       LatestBusTripID: null,
       CreatedBy: 'OP-2024-00123',
     },
@@ -309,8 +325,8 @@ async function seedRegularBusAssignments(ids: {
   await prisma.regularBusAssignment.create({
     data: {
       RegularBusAssignmentID: ids.busAssignmentID_InOperation,
-      DriverID: 'EMP2024-P8-003',
-      ConductorID: 'EMP2024-P9-003',
+      DriverID: driverIDs[2],
+      ConductorID: conductorIDs[2],
       CreatedBy: 'OP-2024-00123',
       // LatestBusTripID will be set after BusTrip creation
     },
@@ -436,11 +452,11 @@ async function seedCompletedBusAssignments() {
   const today = new Date();
   today.setHours(8, 0, 0, 0); // 8:00 AM today
 
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 3; i < 8; i++) { // Use indices 3 to 7 (5 assignments, skip first 3)
     const busAssignmentID = await generateFormattedID('BA');
-    const busID = `BUS-${(i + 10).toString().padStart(5, '0')}`; // BUS-00011 to BUS-00015
-    const driverID = `EMP2024-P8-${(i + 5).toString().padStart(3, '0')}`; 
-    const conductorID = `EMP2024-P9-${(i + 5).toString().padStart(3, '0')}`; 
+    const busID = busIDs[i];
+    const driverID = driverIDs[i];
+    const conductorID = conductorIDs[i];
     const route = routes[i % routes.length];
 
     // Create BusAssignment

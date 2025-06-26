@@ -1,16 +1,11 @@
-//import { fetchDrivers } from '@/lib/fetchExternal';
+import { fetchDrivers, fetchNewDrivers, fetchWithFallback} from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
+import { cp } from 'fs';
 
 const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS_ALL ?? '';
-
-async function fetchDrivers() {
-  const res = await fetch(process.env.DRIVER_URL as string);
-  if (!res.ok) throw new Error('Failed to fetch drivers');
-  return res.json();
-}
 
 const getHandler = async (request: NextRequest) => {
   // const { user, error, status } = await authenticateRequest(request);
@@ -31,7 +26,7 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const employees = await fetchDrivers();
+     const employees = await fetchWithFallback('fetchNewDrivers', fetchNewDrivers, fetchDrivers);
 
     // Map to required driver fields
     const drivers = employees.map((emp: any) => ({

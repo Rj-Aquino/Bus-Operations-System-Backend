@@ -40,3 +40,43 @@ export async function fetchConductors() {
 
   return await res.json();
 }
+
+export async function fetchNewBuses() {
+  const res = await fetch(process.env.BUS_URL as string);
+  if (!res.ok) throw new Error('Failed to fetch buses');
+  return res.json();
+}
+
+export async function fetchNewDrivers() {
+  const res = await fetch(process.env.DRIVER_URL as string);
+  if (!res.ok) throw new Error('Failed to fetch drivers');
+  return res.json();
+}
+
+export async function fetchNewConductors() {
+  const res = await fetch(process.env.CONDUCTOR_URL as string);
+  if (!res.ok) throw new Error('Failed to fetch conductors');
+  return res.json();
+}
+
+export async function fetchWithFallback<T>(
+  label: string,
+  primary: () => Promise<T>,
+  fallback: () => Promise<T>
+): Promise<T> {
+  try {
+    const result = await primary();
+    console.log(`${label} succeeded`);
+    return result;
+  } catch (primaryErr) {
+    console.error(`${label} failed:`, primaryErr);
+    try {
+      const fallbackResult = await fallback();
+      console.log(`Fallback for ${label} succeeded`);
+      return fallbackResult;
+    } catch (fallbackErr) {
+      console.error(`Fallback for ${label} also failed:`, fallbackErr);
+      return [] as T;
+    }
+  }
+}

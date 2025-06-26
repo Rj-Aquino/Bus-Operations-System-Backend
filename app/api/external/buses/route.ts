@@ -1,4 +1,4 @@
-import { fetchBuses } from '@/lib/fetchExternal';
+import { fetchBuses, fetchNewBuses, fetchWithFallback} from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
@@ -6,12 +6,6 @@ import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 import prisma from '@/client';
 
 const BUSES_CACHE_KEY = CACHE_KEYS.BUSES ?? '';
-
-async function fetchNewBuses() {
-  const res = await fetch(process.env.BUS_URL as string);
-  if (!res.ok) throw new Error('Failed to fetch buses');
-  return res.json();
-}
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -33,7 +27,7 @@ const getHandler = async (request: NextRequest) => {
 
   try {
     // Fetch from new endpoint
-    const buses = await fetchNewBuses();
+    const buses = await fetchWithFallback('fetchNewBuses', fetchNewBuses, fetchBuses);
 
     const mappedBuses = (buses.buses ?? []).map((bus: any) => ({
       busId: bus.bus_id,
