@@ -1,16 +1,10 @@
-//import { fetchConductors } from '@/lib/fetchExternal';
+import { fetchConductors, fetchNewConductors, fetchWithFallback} from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
 const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS_ALL ?? '';
-
-async function fetchConductors() {
-  const res = await fetch(process.env.CONDUCTOR_URL as string);
-  if (!res.ok) throw new Error('Failed to fetch conductors');
-  return res.json();
-}
 
 const getHandler = async (request: NextRequest) => {
   // const { user, error, status } = await authenticateRequest(request);
@@ -31,7 +25,8 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const employees = await fetchConductors();
+    
+    const employees = await fetchWithFallback('fetchNewConductors', fetchNewConductors, fetchConductors);
 
     // Map to required conductor fields
     const conductors = employees.map((emp: any) => ({
