@@ -28,8 +28,6 @@ const getHandler = async (request: NextRequest) => {
   try {
      const employees = await fetchWithFallback('fetchNewDrivers', fetchNewDrivers, fetchDrivers);
 
-     console.log('Fetched employees:', employees);  
-    
     // Map to required driver fields
     const drivers = employees.map((emp: any) => ({
       driver_id: emp.employeeNumber,
