@@ -28,8 +28,10 @@ const getAssignmentSummary = async (request: NextRequest) => {
           some: {
             TripExpense: { not: null },
             Sales: { not: null },
-            IsRevenueRecorded: false,
-            IsExpenseRecorded: false,
+            NOT: {
+              IsRevenueRecorded: true,
+              IsExpenseRecorded: true,
+          },
           },
         },
       },
@@ -157,31 +159,42 @@ const patchHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Expected an array of records' }, { status: 400 });
     }
 
-    const tripIds = body
-      .map((item) => item?.bus_trip_id)
-      .filter((id): id is string => typeof id === 'string');
+    const updates = body.filter((item) => typeof item?.bus_trip_id === 'string');
 
-    if (tripIds.length === 0) {
+    if (updates.length === 0) {
       return NextResponse.json({ error: 'No valid bus_trip_id values found' }, { status: 400 });
     }
 
     const results = await Promise.allSettled(
-      tripIds.map((id) =>
-        prisma.busTrip.update({
-          where: { BusTripID: id },
-          data: {
-            IsRevenueRecorded: true,
-            IsExpenseRecorded: true,
-            UpdatedBy: user?.employeeId || null,
-          },
+      updates.map((item) => {
+        const updateData: Record<string, any> = {
+          UpdatedBy: user?.employeeId || null,
+        };
+
+        if ('IsRevenueRecorded' in item && typeof item.IsRevenueRecorded === 'boolean') {
+          updateData.IsRevenueRecorded = item.IsRevenueRecorded;
+        }
+
+        if ('IsExpenseRecorded' in item && typeof item.IsExpenseRecorded === 'boolean') {
+          updateData.IsExpenseRecorded = item.IsExpenseRecorded;
+        }
+
+        if (Object.keys(updateData).length <= 1) {
+          // Only UpdatedBy is included, skip this update.
+          return Promise.reject(new Error('No update fields provided'));
+        }
+
+        return prisma.busTrip.update({
+          where: { BusTripID: item.bus_trip_id },
+          data: updateData,
           select: {
             BusTripID: true,
             IsRevenueRecorded: true,
             IsExpenseRecorded: true,
             UpdatedBy: true,
           },
-        })
-      )
+        });
+      })
     );
 
     const updated = results
@@ -189,7 +202,7 @@ const patchHandler = async (request: NextRequest) => {
       .map((r) => (r as PromiseFulfilledResult<any>).value);
 
     const failed = results
-      .map((res, i) => ({ result: res, id: tripIds[i] }))
+      .map((r, i) => ({ result: r, id: updates[i]?.bus_trip_id }))
       .filter(({ result }) => result.status === 'rejected')
       .map(({ result, id }) => ({
         bus_trip_id: id,
