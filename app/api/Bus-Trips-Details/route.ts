@@ -12,7 +12,6 @@ async function fetchExternal(url: string, token: string) {
   if (!res.ok) return [];
   return res.json();
 }
-
 const getAssignmentSummary = async (request: NextRequest) => {
   const { error, token, status } = await authenticateRequest(request);
   // if (error) {
@@ -20,23 +19,25 @@ const getAssignmentSummary = async (request: NextRequest) => {
   // }
 
   const { searchParams } = new URL(request.url);
-  const filterBy = searchParams.get("RequestType"); // "revenue", "expense", or null
+  const filterBy = searchParams.get("RequestType")?.toLowerCase(); // "revenue", "expense", or null
 
-  // Dynamic filter condition
-  const tripFilter: any = {
+  // Build trip condition dynamically
+  const tripConditions: any = {
     TripExpense: { not: null },
     Sales: { not: null },
   };
 
-  if (filterBy === 'revenue') {
-    tripFilter.NOT = { IsRevenueRecorded: true };
-  } else if (filterBy === 'expense') {
-    tripFilter.NOT = { IsExpenseRecorded: true };
+  // Apply extra condition based on filterBy
+  if (filterBy === "revenue") {
+    tripConditions.IsRevenueRecorded = false;
+  } else if (filterBy === "expense") {
+    tripConditions.IsExpenseRecorded = false;
   } else {
-    tripFilter.NOT = {
-      IsRevenueRecorded: true,
-      IsExpenseRecorded: true,
-    };
+    // Default: filter those that are not fully recorded
+    tripConditions.OR = [
+      { IsRevenueRecorded: false },
+      { IsExpenseRecorded: false },
+    ];
   }
 
   // Fetch assignments
@@ -45,7 +46,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
       IsDeleted: false,
       RegularBusAssignment: {
         BusTrips: {
-          some: tripFilter,
+          some: tripConditions,
         },
       },
     },
@@ -58,14 +59,14 @@ const getAssignmentSummary = async (request: NextRequest) => {
           DriverID: true,
           ConductorID: true,
           BusTrips: {
-            where: tripFilter,
+            where: tripConditions,
             select: {
               BusTripID: true,
               DispatchedAt: true,
               TripExpense: true,
               Sales: true,
               Payment_Method: true,
-              IsExpenseRecorded : true,
+              IsExpenseRecorded: true,
               IsRevenueRecorded: true,
             },
           },
@@ -102,17 +103,14 @@ const getAssignmentSummary = async (request: NextRequest) => {
   const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.conductor_id, c]));
   const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
 
-  // Map to the required format
   const result = assignments.flatMap(a => {
     const busTrips = a.RegularBusAssignment?.BusTrips || [];
     const quotaPolicies = a.RegularBusAssignment?.QuotaPolicies || [];
-    // External info
     const driver = driverMap[a.RegularBusAssignment?.DriverID ?? ''];
     const conductor = conductorMap[a.RegularBusAssignment?.ConductorID ?? ''];
     const bus = busMap[a.BusID ?? ''];
 
     return busTrips.map(trip => {
-      // Find the quota policy where DispatchedAt is within StartDate and EndDate
       let quotaPolicy = null;
       if (trip?.DispatchedAt) {
         quotaPolicy = quotaPolicies.find(qp =>
@@ -142,7 +140,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
         bus_route: a.Route?.RouteName || null,
         is_revenue_recorded: trip?.IsRevenueRecorded ?? false,
         is_expense_recorded: trip?.IsExpenseRecorded ?? false,
-        date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
+        date_assigned: trip?.DispatchedAt?.toISOString() ?? null,
         trip_fuel_expense: trip?.TripExpense ?? null,
         trip_revenue: trip?.Sales ?? null,
         assignment_type,
