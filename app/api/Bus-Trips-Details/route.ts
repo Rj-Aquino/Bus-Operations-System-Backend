@@ -19,20 +19,33 @@ const getAssignmentSummary = async (request: NextRequest) => {
   //   return NextResponse.json({ error }, { status });
   // }
 
-  // Fetch assignments with needed IDs and all BusTrips
+  const { searchParams } = new URL(request.url);
+  const filterBy = searchParams.get("RequestType"); // "revenue", "expense", or null
+
+  // Dynamic filter condition
+  const tripFilter: any = {
+    TripExpense: { not: null },
+    Sales: { not: null },
+  };
+
+  if (filterBy === 'revenue') {
+    tripFilter.NOT = { IsRevenueRecorded: true };
+  } else if (filterBy === 'expense') {
+    tripFilter.NOT = { IsExpenseRecorded: true };
+  } else {
+    tripFilter.NOT = {
+      IsRevenueRecorded: true,
+      IsExpenseRecorded: true,
+    };
+  }
+
+  // Fetch assignments
   const assignments = await prisma.busAssignment.findMany({
     where: {
       IsDeleted: false,
       RegularBusAssignment: {
         BusTrips: {
-          some: {
-            TripExpense: { not: null },
-            Sales: { not: null },
-            NOT: {
-              IsRevenueRecorded: true,
-              IsExpenseRecorded: true,
-          },
-          },
+          some: tripFilter,
         },
       },
     },
@@ -45,10 +58,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
           DriverID: true,
           ConductorID: true,
           BusTrips: {
-            where: {
-              TripExpense: { not: null },
-              Sales: { not: null },
-            },
+            where: tripFilter,
             select: {
               BusTripID: true,
               DispatchedAt: true,
