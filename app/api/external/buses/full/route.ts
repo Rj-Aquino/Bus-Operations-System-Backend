@@ -1,4 +1,4 @@
-import { fetchBuses, fetchNewBuses } from '@/lib/fetchExternal';
+import { fetchNewBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
