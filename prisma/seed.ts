@@ -72,13 +72,44 @@ const busIDs = [
 ];
 
 const driverIDs = [
-  'EMP2024-P8-001', 'EMP2024-P8-002', 'EMP2024-P8-003', 'EMP2024-P8-004', 'EMP2024-P8-005',
-  'EMP2024-P8-006', 'EMP2024-P8-007', 'EMP2024-P8-008', 'EMP2024-P8-009', 'EMP2024-P8-010'
+  "EMP-2015-WQ690X",
+  "EMP-2023-VCEDJC",
+  "EMP-2023-LSHGK5",
+  "EMP-2025-DS0UR2",
+  "EMP-2019-X9K979",
+  "EMP-2015-AJEF3J",
+  "EMP-2025-VR0QPJ",
+  "EMP-2017-5J4OT7",
+  "EMP-2018-XP54UC",
+  "EMP-2017-43R8WX",
+  "EMP-2018-HKXDEL",
+  "EMP-2023-0Z4NI6",
+  "EMP-2022-RF81VM",
+  "EMP-2024-3O3I4O",
+  "EMP-2019-R1ID0J",
+  "EMP-2022-1JGXRU"
 ];
 
 const conductorIDs = [
-  'EMP2024-P9-001', 'EMP2024-P9-002', 'EMP2024-P9-003', 'EMP2024-P9-004', 'EMP2024-P9-005',
-  'EMP2024-P9-006', 'EMP2024-P9-007', 'EMP2024-P9-008', 'EMP2024-P9-009', 'EMP2024-P9-010'
+  "EMP-2024-1G7B3U",
+  "EMP-2022-G9TCH1",
+  "EMP-2014-X7ZVS5",
+  "EMP-2019-66JYD4",
+  "EMP-2015-Q3L5G6",
+  "EMP-2025-0YTIVR",
+  "EMP-2018-F31CY4",
+  "EMP-2024-ZDY56R",
+  "EMP-2018-KGR5M5",
+  "EMP-2019-AU3VYR",
+  "EMP-2018-UTR359",
+  "EMP-2016-BYQXBV",
+  "EMP-2022-GWDUBZ",
+  "EMP-2024-DR6EOL",
+  "EMP-2016-01F53Z",
+  "EMP-2024-GEIPOP",
+  "EMP-2023-IUP3PT",
+  "EMP-2015-D2M988",
+  "EMP-2019-836G6H"
 ];
 
 async function seedStops() {
@@ -377,18 +408,18 @@ async function seedQuotaPolicy() {
 
   const quotaPolicyData = [
     {
-      StartDate: new Date('2025-01-04T08:00:00'),
-      EndDate: new Date('2025-01-04T18:59:59'),
+      StartDate: new Date('2025-01-01T00:00:00Z'),
+      EndDate: new Date('2025-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
     },
     {
-      StartDate: new Date('2025-07-04T09:00:00'),
-      EndDate: new Date('2025-07-04T17:59:59'),
+      StartDate: new Date('2025-01-01T00:00:00Z'),
+      EndDate: new Date('2025-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
     },
     {
-      StartDate: new Date('2025-07-04T09:00:00'),
-      EndDate: new Date('2025-07-04T17:59:59'),
+      StartDate: new Date('2025-01-01T00:00:00Z'),
+      EndDate: new Date('2025-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[2].RegularBusAssignmentID,
     },
   ];
