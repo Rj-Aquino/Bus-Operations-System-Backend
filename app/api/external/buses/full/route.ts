@@ -13,16 +13,16 @@ const getHandler = async (request: NextRequest) => {
   // }
 
   // Try cache first
-  const cached = await getCache<any[]>(BUSES_CACHE_KEY);
-  if (cached) {
-    return NextResponse.json(
-      {
-        message: cached.length ? undefined : 'No buses found',
-        data: cached,
-      },
-      { status: 200 }
-    );
-  }
+ // const cached = await getCache<any[]>(BUSES_CACHE_KEY);
+//  if (cached) {
+ //   return NextResponse.json(
+  //    {
+  //      message: cached.length ? undefined : 'No buses found',
+   //     data: cached,
+//    },
+  //    { status: 200 }
+//    );
+//  }
 
   try {
     const buses = await fetchNewBuses();
