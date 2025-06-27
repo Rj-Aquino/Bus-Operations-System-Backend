@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { withCors } from '@/lib/withcors';
 import { authenticateRequest } from '@/lib/auth';
-import { BusOperationStatus } from '@prisma/client';
 
 async function fetchExternal(url: string, token: string) {
   const res = await fetch(url, {
@@ -29,6 +28,8 @@ const getAssignmentSummary = async (request: NextRequest) => {
           some: {
             TripExpense: { not: null },
             Sales: { not: null },
+            IsRevenueRecorded: false,
+            IsExpenseRecorded: false,
           },
         },
       },
@@ -47,6 +48,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
               Sales: { not: null },
             },
             select: {
+              BusTripID: true,
               DispatchedAt: true,
               TripExpense: true,
               Sales: true,
@@ -122,6 +124,7 @@ const getAssignmentSummary = async (request: NextRequest) => {
 
       return {
         assignment_id: a.BusAssignmentID,
+        bus_trip_id: trip.BusTripID,
         bus_route: a.Route?.RouteName || null,
         date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
         trip_fuel_expense: trip?.TripExpense ?? null,
@@ -141,5 +144,65 @@ const getAssignmentSummary = async (request: NextRequest) => {
   return NextResponse.json(result, { status: 200 });
 };
 
+const patchHandler = async (request: NextRequest) => {
+  const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
+
+  try {
+    const body = await request.json();
+
+    if (!Array.isArray(body)) {
+      return NextResponse.json({ error: 'Expected an array of records' }, { status: 400 });
+    }
+
+    const tripIds = body
+      .map((item) => item?.bus_trip_id)
+      .filter((id): id is string => typeof id === 'string');
+
+    if (tripIds.length === 0) {
+      return NextResponse.json({ error: 'No valid bus_trip_id values found' }, { status: 400 });
+    }
+
+    const results = await Promise.allSettled(
+      tripIds.map((id) =>
+        prisma.busTrip.update({
+          where: { BusTripID: id },
+          data: {
+            IsRevenueRecorded: true,
+            IsExpenseRecorded: true,
+            UpdatedBy: user?.employeeId || null,
+          },
+          select: {
+            BusTripID: true,
+            IsRevenueRecorded: true,
+            IsExpenseRecorded: true,
+            UpdatedBy: true,
+          },
+        })
+      )
+    );
+
+    const updated = results
+      .filter((r) => r.status === 'fulfilled')
+      .map((r) => (r as PromiseFulfilledResult<any>).value);
+
+    const failed = results
+      .map((res, i) => ({ result: res, id: tripIds[i] }))
+      .filter(({ result }) => result.status === 'rejected')
+      .map(({ result, id }) => ({
+        bus_trip_id: id,
+        reason: (result as PromiseRejectedResult).reason?.message || 'Update failed',
+      }));
+
+    return NextResponse.json({ updated, failed }, { status: 200 });
+  } catch (error) {
+    console.error('PATCH_BUS_TRIP_FLAGS_ERROR', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+};
+
 export const GET = withCors(getAssignmentSummary);
+export const PATCH = withCors(patchHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
