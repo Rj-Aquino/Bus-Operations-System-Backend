@@ -1,4 +1,4 @@
-import { fetchBuses, fetchNewBuses, fetchWithFallback} from '@/lib/fetchExternal';
+import { fetchBuses, fetchNewBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
@@ -27,16 +27,19 @@ const getHandler = async (request: NextRequest) => {
 
   try {
     // Fetch from new endpoint
-    const buses = await fetchWithFallback('fetchNewBuses', fetchNewBuses, fetchBuses);
-
-    const mappedBuses = (buses.buses ?? []).map((bus: any) => ({
-      busId: bus.bus_id,
-      license_plate: bus.plate_number,
-      body_number: bus.body_number,
-      type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
-      capacity: bus.seat_capacity,
-      //body_builder: bus.body_builder,
-    }));
+    const buses = await fetchNewBuses();
+        
+    const mappedBuses = (buses.buses ?? [])
+      .filter((bus: any) => bus.status === 'ACTIVE')
+      .map((bus: any) => ({
+        busId: bus.bus_id,
+        license_plate: bus.plate_number,
+        body_number: bus.body_number,
+        type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+        capacity: bus.seat_capacity,
+        //body_builder: bus.body_builder,
+        // route: bus.route, // old only, not present in new
+      }));
 
     // Get all assigned (not deleted) BusIDs from the database
     const assignedBuses = await prisma.busAssignment.findMany({

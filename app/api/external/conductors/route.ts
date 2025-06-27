@@ -1,4 +1,4 @@
-import { fetchConductors, fetchNewConductors, fetchWithFallback} from '@/lib/fetchExternal';
+import { fetchConductors, fetchNewConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
@@ -26,7 +26,7 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const employees = await fetchWithFallback('fetchNewConductors', fetchNewConductors, fetchConductors);
+    const employees = await fetchConductors();
 
     // Map to required conductor fields
     const conductors = employees.map((emp: any) => ({
