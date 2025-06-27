@@ -19,20 +19,33 @@ const getAssignmentSummary = async (request: NextRequest) => {
   //   return NextResponse.json({ error }, { status });
   // }
 
-  // Fetch assignments with needed IDs and all BusTrips
+  const { searchParams } = new URL(request.url);
+  const filterBy = searchParams.get("RequestType"); // "revenue", "expense", or null
+
+  // Dynamic filter condition
+  const tripFilter: any = {
+    TripExpense: { not: null },
+    Sales: { not: null },
+  };
+
+  if (filterBy === 'revenue') {
+    tripFilter.NOT = { IsRevenueRecorded: true };
+  } else if (filterBy === 'expense') {
+    tripFilter.NOT = { IsExpenseRecorded: true };
+  } else {
+    tripFilter.NOT = {
+      IsRevenueRecorded: true,
+      IsExpenseRecorded: true,
+    };
+  }
+
+  // Fetch assignments
   const assignments = await prisma.busAssignment.findMany({
     where: {
       IsDeleted: false,
       RegularBusAssignment: {
         BusTrips: {
-          some: {
-            TripExpense: { not: null },
-            Sales: { not: null },
-            NOT: {
-              IsRevenueRecorded: true,
-              IsExpenseRecorded: true,
-          },
-          },
+          some: tripFilter,
         },
       },
     },
@@ -45,16 +58,15 @@ const getAssignmentSummary = async (request: NextRequest) => {
           DriverID: true,
           ConductorID: true,
           BusTrips: {
-            where: {
-              TripExpense: { not: null },
-              Sales: { not: null },
-            },
+            where: tripFilter,
             select: {
               BusTripID: true,
               DispatchedAt: true,
               TripExpense: true,
               Sales: true,
               Payment_Method: true,
+              IsExpenseRecorded : true,
+              IsRevenueRecorded: true,
             },
           },
           QuotaPolicies: {
@@ -128,6 +140,8 @@ const getAssignmentSummary = async (request: NextRequest) => {
         assignment_id: a.BusAssignmentID,
         bus_trip_id: trip.BusTripID,
         bus_route: a.Route?.RouteName || null,
+        is_revenue_recorded: trip?.IsRevenueRecorded ?? false,
+        is_expense_recorded: trip?.IsExpenseRecorded ?? false,
         date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
         trip_fuel_expense: trip?.TripExpense ?? null,
         trip_revenue: trip?.Sales ?? null,
