@@ -1,9 +1,8 @@
-import { fetchDrivers, fetchNewDrivers } from '@/lib/fetchExternal';
+import { fetchNewDrivers } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
-import { cp } from 'fs';
 
 const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS_ALL ?? '';
 
@@ -26,7 +25,7 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-     const employees = await fetchDrivers();
+     const employees = await fetchNewDrivers();
 
     // Map to required driver fields
     const drivers = employees.map((emp: any) => ({

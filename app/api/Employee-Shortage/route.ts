@@ -2,17 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { withCors } from '@/lib/withcors';
 import { authenticateRequest } from '@/lib/auth';
-import { tr } from 'zod/v4/locales';
-
-async function fetchExternal(url: string, token: string) {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
 
 const getEmployeeShortage = async (request: NextRequest) => {
   // const { error, token, status } = await authenticateRequest(request);

@@ -77,9 +77,9 @@ const getAssignmentSummary = async (request: NextRequest) => {
 
   // Fetch external data
   const [drivers, conductors, buses] = await Promise.all([
-    fetchExternal(`${process.env.BASE_URL}/api/external/drivers/full`, token ?? ''),
-    fetchExternal(`${process.env.BASE_URL}/api/external/conductors/full`, token ?? ''),
-    fetchExternal(`${process.env.BASE_URL}/api/external/buses/full`, token ?? ''),
+    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_DRIVER_URL}`, token ?? ''),
+    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_CONDUCTOR_URL}`, token ?? ''),
+    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_BUS_URL}`, token ?? ''),
   ]);
 
   const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
