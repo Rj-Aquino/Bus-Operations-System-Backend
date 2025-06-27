@@ -3,11 +3,10 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache, delCache } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS} from '@/lib/cache';
 
-const ROUTES_CACHE_KEY = 'routes_list';
-const ROUTES_CACHE_KEY_FULL = 'routes_list_full';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const ROUTES_CACHE_KEY = CACHE_KEYS.ROUTES ?? '';
+const ROUTES_CACHE_KEY_FULL = CACHE_KEYS.ROUTES_FULL ?? '';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
@@ -75,7 +74,7 @@ const getHandler = async (request: NextRequest) => {
       return item;
     });
 
-    await setCache(ROUTES_CACHE_KEY, processed, TTL_SECONDS);
+    await setCache(ROUTES_CACHE_KEY, processed);
     return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch route summary:', error);
@@ -153,6 +152,7 @@ const postHandler = async (request: NextRequest) => {
 
     await delCache(ROUTES_CACHE_KEY);
     await delCache(ROUTES_CACHE_KEY_FULL);
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
     
     return NextResponse.json({
       ...newRoute,

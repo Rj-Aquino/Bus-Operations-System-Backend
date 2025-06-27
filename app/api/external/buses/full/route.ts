@@ -1,17 +1,16 @@
-import { fetchBuses } from '@/lib/fetchExternal';
+import { fetchNewBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
-const BUSES_CACHE_KEY = 'external_buses_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUSES_CACHE_KEY = CACHE_KEYS.BUSES_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(BUSES_CACHE_KEY);
@@ -26,14 +25,26 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const buses = await fetchBuses();
+    const buses = await fetchNewBuses();
 
-    await setCache(BUSES_CACHE_KEY, buses, TTL_SECONDS);
+    const mappedBuses = (buses.buses ?? [])
+      .filter((bus: any) => bus.status === 'ACTIVE')
+      .map((bus: any) => ({
+        busId: bus.bus_id,
+        license_plate: bus.plate_number,
+        body_number: bus.body_number,
+        type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+        capacity: bus.seat_capacity,
+        //body_builder: bus.body_builder,
+        // route: bus.route, // old only, not present in new
+      }));
+
+    await setCache(BUSES_CACHE_KEY, mappedBuses);
 
     return NextResponse.json(
       {
-        message: buses.length ? undefined : 'No buses found',
-        data: buses,
+        message: mappedBuses.length ? undefined : 'No buses found',
+        data: mappedBuses,
       },
       { status: 200 }
     );

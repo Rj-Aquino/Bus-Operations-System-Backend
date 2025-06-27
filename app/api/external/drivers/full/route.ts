@@ -1,17 +1,16 @@
-import { fetchDrivers } from '@/lib/fetchExternal';
+import { fetchNewDrivers } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 
-const DRIVERS_CACHE_KEY = 'external_drivers_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);
@@ -26,9 +25,17 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const drivers = await fetchDrivers();
+     const employees = await fetchNewDrivers();
 
-    await setCache(DRIVERS_CACHE_KEY, drivers, TTL_SECONDS);
+    // Map to required driver fields
+    const drivers = employees.map((emp: any) => ({
+      driver_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
+
+    await setCache(DRIVERS_CACHE_KEY, drivers);
 
     return NextResponse.json(
       {

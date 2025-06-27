@@ -3,10 +3,10 @@ import prisma from '@/client';
 import { BusOperationStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
+import { tr } from 'zod/v4/locales';
 
-const BUS_OPERATIONS_CACHE_KEY = 'bus_operations_list';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUS_OPERATIONS_CACHE_KEY = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -93,12 +93,16 @@ const getHandler = async (request: NextRequest) => {
                 DispatchedAt: true,
                 CompletedAt: true,
                 Sales: true,
-                ChangeFund: true,
+                PettyCash: true,
+                Remarks: true,
+                TripExpense: true, // <-- updated
+                Payment_Method: true, // <-- new
                 TicketBusTrips: {
                   select: {
                     TicketBusTripID: true,
                     StartingIDNumber: true,
                     EndingIDNumber: true,
+                    OverallEndingID: true,
                     TicketType: {
                       select: {
                         TicketTypeID: true,
@@ -112,6 +116,8 @@ const getHandler = async (request: NextRequest) => {
             QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
+                StartDate: true,   // <-- Add this
+                EndDate: true,     // <-- And this
                 Fixed: {
                   select: {
                     Quota: true,
@@ -165,7 +171,7 @@ const getHandler = async (request: NextRequest) => {
       };
     });
 
-    await setCache(cacheKey, result, TTL_SECONDS);
+    await setCache(cacheKey, result);
 
     return NextResponse.json(result);
   } catch (error) {

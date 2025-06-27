@@ -1,17 +1,16 @@
-import { fetchConductors } from '@/lib/fetchExternal';
+import { fetchNewConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 
-const CONDUCTORS_CACHE_KEY = 'external_conductors_all';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS_ALL ?? '';
 
 const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // const { user, error, status } = await authenticateRequest(request);
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(CONDUCTORS_CACHE_KEY);
@@ -26,9 +25,18 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const conductors = await fetchConductors();
+    
+    const employees = await fetchNewConductors();
 
-    await setCache(CONDUCTORS_CACHE_KEY, conductors, TTL_SECONDS);
+    // Map to required conductor fields
+    const conductors = employees.map((emp: any) => ({
+      conductor_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
+
+    await setCache(CONDUCTORS_CACHE_KEY, conductors);
 
     return NextResponse.json(
       {

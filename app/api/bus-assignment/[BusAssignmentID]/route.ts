@@ -3,9 +3,9 @@ import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-const ASSIGNMENTS_CACHE_KEY = 'regular_bus_assignments';
+const ASSIGNMENTS_CACHE_KEY = CACHE_KEYS.BUS_ASSIGNMENTS ?? '';
 
 const putHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -78,6 +78,31 @@ const putHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Conductor is already assigned.' }, { status: 400 });
     }
 
+    if (Array.isArray(data.quotaPolicies)) {
+    const sorted = data.quotaPolicies
+      .map((qp: any) => {
+        const start = qp.startDate || qp.StartDate;
+        const end = qp.endDate || qp.EndDate;
+        if (!start || !end) {
+          throw new Error('All QuotaPolicy entries must have both startDate and endDate.');
+        }
+        return {
+          start: new Date(start),
+          end: new Date(end),
+        };
+      })
+      .sort((a: { start: Date; end: Date }, b: { start: Date; end: Date }) => a.start.getTime() - b.start.getTime());
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].end > sorted[i + 1].start) {
+        return NextResponse.json(
+          { error: 'QuotaPolicy date ranges cannot overlap.' },
+          { status: 400 }
+        );
+      }
+    }
+}
+
     // Update BusAssignment and RegularBusAssignment
     const updated = await prisma.busAssignment.update({
       where: { BusAssignmentID },
@@ -141,12 +166,16 @@ const putHandler = async (request: NextRequest) => {
         const quotaPolicyID = generateFormattedID("QP");
         // Accept both camelCase and PascalCase for dates
         const startDate = qp.startDate || qp.StartDate;
-        const endDate = qp.endDate || qp.EndDate;
+        const endDateRaw = qp.endDate || qp.EndDate;
+        const endDateObj: Date | undefined = endDateRaw ? new Date(endDateRaw) : undefined;
+        if (endDateObj) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
         const quotaPolicyData: any = {
           QuotaPolicyID: quotaPolicyID,
           RegularBusAssignmentID: newRegularBusAssignmentID!,
           ...(startDate && { StartDate: new Date(startDate) }),
-          ...(endDate && { EndDate: new Date(endDate) }),
+          ...(endDateObj && { EndDate: endDateObj }),
           CreatedBy: user?.employeeId || null,
           UpdatedBy: user?.employeeId || null,
         };
@@ -213,14 +242,14 @@ const putHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
-    await delCache('regular_bus_assignments');
-    await delCache('external_buses_all');
-    await delCache('external_buses_unassigned');
-    await delCache('external_drivers_all');
-    await delCache('external_drivers_unassigned');
-    await delCache('external_conductors_all');
-    await delCache('external_conductors_unassigned');
-    await delCache('bus_operations_list_NotReady');
+    await delCache(CACHE_KEYS.BUSES ?? '');
+    await delCache(CACHE_KEYS.DRIVERS ?? '');
+    await delCache(CACHE_KEYS.CONDUCTORS ?? '');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
 
     return NextResponse.json(refreshed, { status: 200 });
   } catch (error) {
@@ -263,13 +292,14 @@ const patchHandler = async (request: NextRequest) => {
     });
 
     await delCache(ASSIGNMENTS_CACHE_KEY);
-    await delCache('regular_bus_assignments');
-    await delCache('external_buses_all');
-    await delCache('external_buses_unassigned');
-    await delCache('external_drivers_all');
-    await delCache('external_drivers_unassigned');
-    await delCache('external_conductors_all');
-    await delCache('external_conductors_unassigned');
+    await delCache(CACHE_KEYS.BUSES ?? '');
+    await delCache(CACHE_KEYS.DRIVERS ?? '');
+    await delCache(CACHE_KEYS.CONDUCTORS ?? '');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {

@@ -1,12 +1,11 @@
-import { fetchConductors } from '@/lib/fetchExternal';
+import { fetchNewConductors } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 import prisma from '@/client';
 
-const CONDUCTORS_CACHE_KEY = 'external_conductors_unassigned';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const CONDUCTORS_CACHE_KEY = CACHE_KEYS.CONDUCTORS ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -27,7 +26,15 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const conductors = await fetchConductors();
+    const employees = await fetchNewConductors();
+
+    // Map to required conductor fields
+    const conductors = employees.map((emp: any) => ({
+      conductor_id: emp.employeeNumber,
+      name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
+      contactNo: emp.phone,
+      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+    }));
 
     // Get all assigned (not deleted) ConductorIDs from the database
     const assignedConductors = await prisma.regularBusAssignment.findMany({
@@ -38,10 +45,10 @@ const getHandler = async (request: NextRequest) => {
     });
     const assignedConductorIDs = new Set(assignedConductors.map(c => String(c.ConductorID)));
 
-    // Filter out assigned conductors from the external API (which uses conductor_id)
+    // Filter out assigned conductors
     const unassignedConductors = conductors.filter((conductor: any) => !assignedConductorIDs.has(String(conductor.conductor_id)));
 
-    await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors, TTL_SECONDS);
+    await setCache(CONDUCTORS_CACHE_KEY, unassignedConductors);
 
     return NextResponse.json(
       {

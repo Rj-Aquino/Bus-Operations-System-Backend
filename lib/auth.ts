@@ -54,7 +54,7 @@ export const authenticateRequest = async (request: Request) => {
       employeeId: decoded.employeeId || decoded.userId || null,
     };
 
-    return { user };
+    return { user, token };
   } catch (err) {
     console.log('Token verification failed:', err);
     return { error: 'Invalid or expired token', status: 401 };

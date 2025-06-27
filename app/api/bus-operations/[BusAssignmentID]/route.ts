@@ -3,13 +3,15 @@ import prisma from '@/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS} from '@/lib/cache';
 
 enum BusOperationStatus {
   NotStarted = 'NotStarted',
   InOperation = 'InOperation',
   NotReady = 'NotReady',
 }
+
+const ALLOWED_PAYMENT_METHODS = ['Reimbursement', 'Company_Cash'];
 
 type BusAssignmentUpdateData = Partial<{
   Status: BusOperationStatus;
@@ -71,9 +73,17 @@ async function resetAssignment(BusAssignmentID: string, busAssignmentFields: Bus
     include: { RegularBusAssignment: true },
   });
 
+  // Update CompletedAt to today if there is a LatestBusTrip
   if (updatedBusAssignment.RegularBusAssignment) {
+    const reg = updatedBusAssignment.RegularBusAssignment;
+    if (reg.LatestBusTripID) {
+      await prisma.busTrip.update({
+        where: { BusTripID: reg.LatestBusTripID },
+        data: { CompletedAt: new Date(), UpdatedBy: user?.employeeId || null },
+      });
+    }
     await prisma.regularBusAssignment.update({
-      where: { RegularBusAssignmentID: updatedBusAssignment.RegularBusAssignment.RegularBusAssignmentID },
+      where: { RegularBusAssignmentID: reg.RegularBusAssignmentID },
       data: { LatestBusTripID: null, UpdatedBy: user?.employeeId || null },
     });
   }
@@ -113,9 +123,10 @@ async function fetchFullRecord(BusAssignmentID: string) {
               DispatchedAt: true,
               CompletedAt: true,
               Sales: true,
-              ChangeFund: true,
+              PettyCash: true,
               Remarks: true,
-              FuelExpense: true,
+              TripExpense: true,
+              Payment_Method: true,
               TicketBusTrips: {
                 select: {
                   TicketBusTripID: true,
@@ -190,10 +201,11 @@ async function handleBusTrip(
     if (
       'DispatchedAt' in body ||
       'Sales' in body ||
-      'ChangeFund' in body ||
+      'PettyCash' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||
-      'FuelExpense' in body
+      'TripExpense' in body ||
+      'Payment_Method' in body 
     ) {
       if (!regID) throw new Error('RegularBusAssignmentID is required to create a BusTrip.');
       const newBusTripID = await generateFormattedID('BT');
@@ -204,9 +216,10 @@ async function handleBusTrip(
           DispatchedAt: 'DispatchedAt' in body && body.DispatchedAt ? new Date(body.DispatchedAt) : null,
           CompletedAt: 'CompletedAt' in body && body.CompletedAt ? new Date(body.CompletedAt) : null,
           Sales: 'Sales' in body ? body.Sales : null,
-          ChangeFund: 'ChangeFund' in body ? body.ChangeFund : null,
+          PettyCash: 'PettyCash' in body ? body.PettyCash : null,
           Remarks: 'Remarks' in body ? body.Remarks : null,
-          FuelExpense: 'FuelExpense' in body ? body.FuelExpense : null,
+          TripExpense: 'TripExpense' in body ? body.TripExpense : null,
+          Payment_Method: 'Payment_Method' in body ? body.Payment_Method : null,
           UpdatedBy: user?.employeeId || null,
         },
       });
@@ -225,11 +238,12 @@ async function handleBusTrip(
 async function updateBusTripFields(targetBusTripID: string, body: any, user: any) {
   const busTripUpdate: any = {};
   if ('Sales' in body) busTripUpdate.Sales = body.Sales;
-  if ('ChangeFund' in body) busTripUpdate.ChangeFund = body.ChangeFund;
+  if ('PettyCash' in body) busTripUpdate.PettyCash = body.PettyCash;
   if ('DispatchedAt' in body) busTripUpdate.DispatchedAt = new Date(body.DispatchedAt);
   if ('CompletedAt' in body) busTripUpdate.CompletedAt = body.CompletedAt ? new Date(body.CompletedAt) : null;
   if ('Remarks' in body) busTripUpdate.Remarks = body.Remarks;
-  if ('FuelExpense' in body) busTripUpdate.FuelExpense = body.FuelExpense;
+  if ('TripExpense' in body) busTripUpdate.TripExpense = body.TripExpense;
+  if ('Payment_Method' in body) busTripUpdate.Payment_Method = body.Payment_Method;
   busTripUpdate.UpdatedBy = user?.employeeId || null;
 
   if (Object.keys(busTripUpdate).length > 0) {
@@ -241,6 +255,19 @@ async function updateBusTripFields(targetBusTripID: string, body: any, user: any
 }
 
 async function updateTicketBusTrips(targetBusTripID: string, ticketBusTrips: any[], allTrue: boolean, BusAssignmentID: string, user: any) {
+  
+  // Validate EndingIDNumber is between StartingIDNumber and OverallEndingID
+  for (const tbt of ticketBusTrips) {
+    if (
+      tbt.StartingIDNumber != null &&
+      tbt.EndingIDNumber != null &&
+      tbt.OverallEndingID != null &&
+      (tbt.EndingIDNumber < tbt.StartingIDNumber || tbt.EndingIDNumber > tbt.OverallEndingID)
+    ) {
+      throw new Error('EndingIDNumber must be between StartingIDNumber and OverallEndingID.');
+    }
+  }
+    
   // 1. Delete all existing TicketBusTrips for this BusTrip
   await prisma.ticketBusTrip.deleteMany({
     where: { BusTripID: targetBusTripID }
@@ -291,6 +318,18 @@ const putHandler = async (request: NextRequest) => {
   try {
     const body = await request.json();
 
+    // Validate Payment_Method if present
+    if (
+      'Payment_Method' in body &&
+      body.Payment_Method != null &&
+      !ALLOWED_PAYMENT_METHODS.includes(body.Payment_Method)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid Payment_Method. Allowed values: Reimbursement, Company_Cash.' },
+        { status: 400 }
+      );
+    }
+
     if (body.Status && !Object.values(BusOperationStatus).includes(body.Status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
     }
@@ -315,14 +354,40 @@ const putHandler = async (request: NextRequest) => {
       busAssignmentFields.Status = BusOperationStatus.NotReady;
     }
 
-    // Reset logic
-    if (body.ResetCompleted) {
-      const updatedFullRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
-      await delCache('bus_operations_list_InOperation');
-      await delCache('bus_operations_list_NotReady');
-      await delCache('bus_operations_list_NotStarted');
-      await delCache('bus_operations_ready_assignments');
-      return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
+    // Only validate QuotaPolicy if status is InOperation (either in body or current)
+    const statusToCheck = body.Status || currentAssignment.Status;
+    if (statusToCheck === BusOperationStatus.InOperation) {
+      let dispatchedAt: Date;
+      if ('DispatchedAt' in body && body.DispatchedAt) {
+        dispatchedAt = new Date(body.DispatchedAt);
+      } else {
+        dispatchedAt = new Date(); // Use current date/time if not provided
+        body.DispatchedAt = dispatchedAt.toISOString(); // Add to body for downstream use
+      }
+
+      console.log('[QuotaPolicy Validation] DispatchedAt:', dispatchedAt.toISOString());
+      console.log('[QuotaPolicy Validation] RegularBusAssignmentID:', currentAssignment.RegularBusAssignment?.RegularBusAssignmentID);
+
+      if (currentAssignment.RegularBusAssignment?.RegularBusAssignmentID) {
+        const hasPolicy = await prisma.quota_Policy.findFirst({
+          where: {
+            RegularBusAssignmentID: currentAssignment.RegularBusAssignment.RegularBusAssignmentID,
+            StartDate: { lte: dispatchedAt },
+            EndDate: { gte: dispatchedAt },
+          },
+          select: { QuotaPolicyID: true },
+        });
+
+        console.log('[QuotaPolicy Validation] Found Policy:', hasPolicy);
+
+        if (!hasPolicy) {
+          console.warn('[QuotaPolicy Validation] No active QuotaPolicy for this DispatchedAt!');
+          return NextResponse.json(
+            { error: 'Cannot dispatch: No active QuotaPolicy for the selected DispatchedAt date/time.' },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     const updatedBusAssignment = await prisma.busAssignment.update({
@@ -348,11 +413,12 @@ const putHandler = async (request: NextRequest) => {
     // Only show error if user tried to update BusTrip fields but no BusTrip exists
     const hasAnyBusTripField =
       'Sales' in body ||
-      'ChangeFund' in body ||
+      'PettyCash' in body ||
       'DispatchedAt' in body ||
       'CompletedAt' in body ||
       'Remarks' in body ||
-      'FuelExpense' in body;
+      'TripExpense' in body ||
+      'Payment_Method' in body 
 
     if (!targetBusTripID && hasAnyBusTripField) {
       return NextResponse.json({ error: 'No valid BusTrip to update or create' }, { status: 400 });
@@ -367,20 +433,44 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const updatedFullRecord = await fetchFullRecord(BusAssignmentID);
-    await delCache('bus_operations_list_InOperation');
-    await delCache('bus_operations_list_NotReady');
-    await delCache('bus_operations_list_NotStarted');
-    await delCache('bus_operations_ready_assignments');
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
+    await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
+
+    if (body.ResetCompleted) {
+      const resetRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
+      return NextResponse.json(applyAuditLogic(resetRecord), { status: 200 });
+    }
+
     return NextResponse.json(applyAuditLogic(updatedFullRecord), { status: 200 });
 
   } catch (error: any) {
     console.error('Update error:', error);
+    if (
+      error.message === 'EndingIDNumber must be between StartingIDNumber and OverallEndingID.'
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
     if (
       error.code === 'P2003' &&
       String(error.message).includes('TicketBusTripAssignment_TicketTypeID_fkey')
     ) {
       return NextResponse.json(
         { error: 'Invalid TicketTypeID: Ticket type does not exist.' },
+        { status: 400 }
+      );
+    }
+    if (
+      error.code === 'P2000' &&
+      String(error.message).includes('Payment_Method')
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid Payment_Method. Allowed values: Reimbursement, Company_Cash.' },
         { status: 400 }
       );
     }

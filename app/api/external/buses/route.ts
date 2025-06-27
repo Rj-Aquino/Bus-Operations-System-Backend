@@ -1,18 +1,17 @@
-import { fetchBuses } from '@/lib/fetchExternal';
+import { fetchNewBuses } from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache } from '@/lib/cache';
+import { CACHE_KEYS, getCache, setCache } from '@/lib/cache';
 import prisma from '@/client';
 
-const BUSES_CACHE_KEY = 'external_buses_unassigned';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const BUSES_CACHE_KEY = CACHE_KEYS.BUSES ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
   const cached = await getCache<any[]>(BUSES_CACHE_KEY);
@@ -27,7 +26,20 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const buses = await fetchBuses();
+    // Fetch from new endpoint
+    const buses = await fetchNewBuses();
+        
+    const mappedBuses = (buses.buses ?? [])
+      .filter((bus: any) => bus.status === 'ACTIVE')
+      .map((bus: any) => ({
+        busId: bus.bus_id,
+        license_plate: bus.plate_number,
+        body_number: bus.body_number,
+        type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+        capacity: bus.seat_capacity,
+        //body_builder: bus.body_builder,
+        // route: bus.route, // old only, not present in new
+      }));
 
     // Get all assigned (not deleted) BusIDs from the database
     const assignedBuses = await prisma.busAssignment.findMany({
@@ -36,10 +48,10 @@ const getHandler = async (request: NextRequest) => {
     });
     const assignedBusIDs = new Set(assignedBuses.map(b => String(b.BusID)));
 
-    // Filter out assigned buses from the external API (which uses busId)
-    const unassignedBuses = buses.filter((bus: any) => !assignedBusIDs.has(String(bus.busId)));
+    // Filter out assigned buses
+    const unassignedBuses = mappedBuses.filter((bus: any) => !assignedBusIDs.has(String(bus.busId)));
 
-    await setCache(BUSES_CACHE_KEY, unassignedBuses, TTL_SECONDS);
+    await setCache(BUSES_CACHE_KEY, unassignedBuses);
 
     return NextResponse.json(
       {

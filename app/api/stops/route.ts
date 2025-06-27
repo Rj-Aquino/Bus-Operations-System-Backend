@@ -3,10 +3,9 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { getCache, setCache, delCache } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS} from '@/lib/cache';
 
-const STOPS_CACHE_KEY = 'stops_list';
-const TTL_SECONDS = 60 * 60; // 1 hour
+const STOPS_CACHE_KEY = CACHE_KEYS.STOPS_LIST ?? ' ';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -59,7 +58,7 @@ const getHandler = async (request: NextRequest) => {
       return item;
     });
 
-    await setCache(STOPS_CACHE_KEY, processed, TTL_SECONDS);
+    await setCache(STOPS_CACHE_KEY, processed);
     return NextResponse.json(processed);
   } catch (error) {
     console.error('Failed to fetch stops:', error);
@@ -112,6 +111,7 @@ const postHandler = async (req: NextRequest) => {
     });
 
     await delCache(STOPS_CACHE_KEY);
+
 
     // Apply UpdatedAt/UpdatedBy logic for immediate response
     const processed =

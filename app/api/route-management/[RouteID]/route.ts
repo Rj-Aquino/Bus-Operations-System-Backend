@@ -3,10 +3,10 @@ import prisma from '@/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
-import { delCache } from '@/lib/cache';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-const ROUTES_CACHE_KEY = 'routes_list';
-const ROUTES_CACHE_KEY_FULL = 'routes_list_full';
+const ROUTES_CACHE_KEY = CACHE_KEYS.ROUTES ?? '';
+const ROUTES_CACHE_KEY_FULL = CACHE_KEYS.ROUTES_FULL ?? '';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
@@ -117,6 +117,7 @@ const putHandler = async (request: NextRequest) => {
     // Invalidate both summary and full route caches
     await delCache(ROUTES_CACHE_KEY);
     await delCache(ROUTES_CACHE_KEY_FULL);
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
 
     return NextResponse.json(updatedRoute, { status: 200 });
 
@@ -180,6 +181,7 @@ const patchHandler = async (req: NextRequest) => {
 
     await delCache(ROUTES_CACHE_KEY);
     await delCache(ROUTES_CACHE_KEY_FULL);
+    await delCache(CACHE_KEYS.DASHBOARD ?? '');
 
     return NextResponse.json(updatedRoute, { status: 200 });
 
