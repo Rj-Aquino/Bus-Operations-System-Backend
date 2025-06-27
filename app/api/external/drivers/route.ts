@@ -14,16 +14,16 @@ const getHandler = async (request: NextRequest) => {
   // }
 
   // Try cache first
-  const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);
-  if (cached) {
-    return NextResponse.json(
-      {
-        message: cached.length > 0 ? 'Drivers fetched successfully' : 'No drivers found',
-        data: cached,
-      },
-      { status: 200 }
-    );
-  }
+ // const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);
+ // if (cached) {
+ //   return NextResponse.json(
+    //  {
+     //   message: cached.length > 0 ? 'Drivers fetched successfully' : 'No drivers found',
+    //    data: cached,
+    //  },
+    //  { status: 200 }
+  //  );
+ // }
 
   try {
     const employees = await fetchNewDrivers();
