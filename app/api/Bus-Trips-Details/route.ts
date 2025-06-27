@@ -65,6 +65,8 @@ const getAssignmentSummary = async (request: NextRequest) => {
               TripExpense: true,
               Sales: true,
               Payment_Method: true,
+              IsExpenseRecorded : true,
+              IsRevenueRecorded: true,
             },
           },
           QuotaPolicies: {
@@ -138,6 +140,8 @@ const getAssignmentSummary = async (request: NextRequest) => {
         assignment_id: a.BusAssignmentID,
         bus_trip_id: trip.BusTripID,
         bus_route: a.Route?.RouteName || null,
+        is_revenue_recorded: trip?.IsRevenueRecorded ?? false,
+        is_expense_recorded: trip?.IsExpenseRecorded ?? false,
         date_assigned: trip?.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
         trip_fuel_expense: trip?.TripExpense ?? null,
         trip_revenue: trip?.Sales ?? null,
