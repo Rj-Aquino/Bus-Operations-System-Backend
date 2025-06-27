@@ -137,6 +137,8 @@ CREATE TABLE "BusTrip" (
     "Remarks" TEXT,
     "TripExpense" DOUBLE PRECISION,
     "Payment_Method" "PaymentMethod",
+    "IsRevenueRecorded" BOOLEAN NOT NULL DEFAULT false,
+    "IsExpenseRecorded" BOOLEAN NOT NULL DEFAULT false,
     "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMP(3) NOT NULL,
     "CreatedBy" TEXT,

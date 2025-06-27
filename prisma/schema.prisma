@@ -173,6 +173,9 @@ model BusTrip {
   TripExpense            Float?
   Payment_Method         PaymentMethod?
 
+  IsRevenueRecorded      Boolean  @default(false)
+  IsExpenseRecorded      Boolean  @default(false)
+
   regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
   TicketBusTrips TicketBusTrip[]
 
