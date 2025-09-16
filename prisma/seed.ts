@@ -68,7 +68,7 @@ const stopData1 = [
 const busIDs = [
   'BUS-00001', 'BUS-00002', 'BUS-00003', 'BUS-00004', 'BUS-00005',
   'BUS-00006', 'BUS-00007', 'BUS-00008', 'BUS-00009', 'BUS-00010',
-  'BUS-00011', 'BUS-00012', 'BUS-00013', 'BUS-00014', 'BUS-00015'
+  'BUS-00011', 'BUS-00012', 'BUS-00013', 'BUS-00014', 'BUS-00015', 'BUS-00016'
 ];
 
 const driverIDs = [
@@ -493,8 +493,6 @@ async function seedCompletedBusAssignments() {
 
   for (let i = 3; i < 13; i++) { // 10 assignments
 
-    console.log(`Creating completed bus assignment ${i - 2}...`);
-
     const busAssignmentID = await generateFormattedID('BA');
     const busID = busIDs[i % busIDs.length];
     const driverID = driverIDs[i % driverIDs.length];
@@ -623,19 +621,198 @@ async function seedCompletedBusAssignments() {
   console.log('10 completed bus assignments, trips, quota policies, and ticket bus trips seeded (with varied dates)');
 }
 
+async function seedRentalBusAssignments() {
+  const allRoutes = await prisma.route.findMany({ orderBy: { RouteID: 'asc' } });
+  const routeID1 = allRoutes[0]?.RouteID;
+  const routeID2 = allRoutes[1]?.RouteID;
+
+  const ids = {
+    rental1: await generateFormattedID('BA'),
+    rental2: await generateFormattedID('BA'),
+    rental3: await generateFormattedID('BA'),
+  };
+
+  const rentals = [
+    {
+      id: ids.rental1,
+      busID: busIDs[13],
+      routeID: routeID1,
+      status: BusOperationStatus.NotReady,
+      allChecks: true,
+    },
+    {
+      id: ids.rental2,
+      busID: busIDs[14],
+      routeID: routeID2,
+      status: BusOperationStatus.NotStarted,
+      allChecks: false,
+    },
+    {
+      id: ids.rental3,
+      busID: busIDs[15],
+      routeID: routeID1, // only 2 routes available
+      status: BusOperationStatus.InOperation,
+      allChecks: true,
+    },
+  ];
+
+  for (const r of rentals) {
+    // Step 1: Create BusAssignment (AssignmentType = Rental)
+    await prisma.busAssignment.create({
+      data: {
+        BusAssignmentID: r.id,
+        BusID: r.busID,
+        RouteID: r.routeID,
+        AssignmentType: 'Rental',
+        Battery: r.allChecks,
+        Lights: r.allChecks,
+        Oil: r.allChecks,
+        Water: r.allChecks,
+        Break: r.allChecks,
+        Air: r.allChecks,
+        Gas: r.allChecks,
+        Engine: r.allChecks,
+        TireCondition: r.allChecks,
+        Self_Driver: r.allChecks,
+        Self_Conductor: r.allChecks,
+        IsDeleted: false,
+        Status: r.status,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+
+    // Step 2: Create RentalBusAssignment with same ID
+    await prisma.rentalBusAssignment.create({
+      data: {
+        RentalBusAssignmentID: r.id, // same as BusAssignmentID
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+  }
+
+  console.log('Rental bus assignments seeded');
+  return ids;
+}
+
+async function seedRentalDrivers(rentalIDs: { [key: string]: string }) {
+  const drivers = [
+    {
+      id: await generateFormattedID('RD'),
+      rentalBusAssignmentID: rentalIDs.rental1,
+      driverID: driverIDs[13],
+    },
+    {
+      id: await generateFormattedID('RD'),
+      rentalBusAssignmentID: rentalIDs.rental2,
+      driverID: driverIDs[14],
+    },
+    {
+      id: await generateFormattedID('RD'),
+      rentalBusAssignmentID: rentalIDs.rental3,
+      driverID: driverIDs[15],
+    },
+  ];
+
+  for (const d of drivers) {
+    await prisma.rentalDriver.create({
+      data: {
+        RentalDriverID: d.id,
+        RentalBusAssignmentID: d.rentalBusAssignmentID,
+        DriverID: d.driverID,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+  }
+
+  console.log('Rental drivers seeded');
+}
+
+async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
+  const requests = [
+    {
+      id: await generateFormattedID('RR'),
+      rentalBusAssignmentID: rentalIDs.rental1,
+      pickupLocation: 'Quezon City',
+      dropoffLocation: 'Makati',
+      passengers: 20,
+      pickup: new Date('2025-04-20T08:00:00'),
+      expectedArrival: new Date('2025-04-20T09:30:00'),
+      requirements: 'Air conditioning required',
+      customer: 'Juan Dela Cruz',
+      contact: '09171234567',
+      status: 'Approved' as const,
+    },
+    {
+      id: await generateFormattedID('RR'),
+      rentalBusAssignmentID: rentalIDs.rental2,
+      pickupLocation: 'Pasay',
+      dropoffLocation: 'Tagaytay',
+      passengers: 40,
+      pickup: new Date('2025-04-21T07:00:00'),
+      expectedArrival: new Date('2025-04-21T09:00:00'),
+      requirements: 'Reclining seats',
+      customer: 'Maria Santos',
+      contact: '09182345678',
+      status: 'Pending' as const,
+    },
+    {
+      id: await generateFormattedID('RR'),
+      rentalBusAssignmentID: rentalIDs.rental3,
+      pickupLocation: 'Manila',
+      dropoffLocation: 'Batangas Port',
+      passengers: 30,
+      pickup: new Date('2025-04-22T06:00:00'),
+      expectedArrival: new Date('2025-04-22T09:00:00'),
+      requirements: null,
+      customer: 'Pedro Reyes',
+      contact: '09193456789',
+      status: 'Completed' as const,
+    },
+  ];
+
+  for (const r of requests) {
+    await prisma.rentalRequest.create({
+      data: {
+        RentalRequestID: r.id,
+        RentalBusAssignmentID: r.rentalBusAssignmentID,
+        PickupLocation: r.pickupLocation,
+        DropoffLocation: r.dropoffLocation,
+        NumberOfPassengers: r.passengers,
+        PickupDateAndTime: r.pickup,
+        ExpectedArrivalTime: r.expectedArrival,
+        SpecialRequirements: r.requirements,
+        Status: r.status,
+        CustomerName: r.customer,
+        CustomerContact: r.contact,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+  }
+
+  console.log('Rental requests seeded');
+}
+
 async function main() {
   await seedStops();
   await seedRoutes();
   await seedRouteStops();
   await seedTicketTypes();
+
   const ids = await seedBusAssignments();
   await seedRegularBusAssignments(ids);
   await seedBusTrips(ids);
+
   await seedTicketBusTrips();
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();
   await seedCompletedBusAssignments();
+ 
+  const rentalIDs = await seedRentalBusAssignments();
+
+  await seedRentalDrivers(rentalIDs);
+  await seedRentalRequests(rentalIDs);
+
   await clearAllCache(); 
 }
 
