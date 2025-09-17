@@ -27,16 +27,13 @@ const getHandler = async (request: NextRequest) => {
   try {
     const buses = await fetchNewBuses();
 
-    const mappedBuses = (buses.buses ?? [])
-      .filter((bus: any) => bus.status === 'ACTIVE')
+    const mappedBuses = (buses ?? [])
       .map((bus: any) => ({
         busId: bus.bus_id,
         license_plate: bus.plate_number,
-        body_number: bus.body_number,
-        type: bus.bus_type?.toUpperCase() === 'AIRCONDITIONED' ? 'Aircon' : 'Non-Aircon',
+        body_number: bus.body_number ?? null, // safe fallback
+        type: bus.bus_type?.toUpperCase().includes('AIRCON') ? 'Aircon' : 'Non-Aircon',
         capacity: bus.seat_capacity,
-        //body_builder: bus.body_builder,
-        // route: bus.route, // old only, not present in new
       }));
 
     await setCache(BUSES_CACHE_KEY, mappedBuses);

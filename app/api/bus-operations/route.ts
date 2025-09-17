@@ -54,7 +54,10 @@ const getHandler = async (request: NextRequest) => {
 
     // Fetch all bus assignments with their RegularBusAssignment and only the LatestBusTrip
     const busAssignments = await prisma.busAssignment.findMany({
-      where: whereClause,
+        where: {
+      ...whereClause,
+      AssignmentType: "Regular", // <-- Only get Regular assignments
+      },
       orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         BusAssignmentID: true,
