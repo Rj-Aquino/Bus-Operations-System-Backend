@@ -19,9 +19,10 @@ export async function fetchNewBuses() {
 
     if (!res.ok) throw new Error('Failed to fetch buses');
     return await res.json();
+
   } catch (error) {
-    console.error("Bus API unavailable or timed out:", error);
-    return []; // fallback empty
+    console.error("Bus API unavailable or timed out, falling back:", error);
+    return await fetchBuses();
   }
 }
 
@@ -31,9 +32,11 @@ export async function fetchNewDrivers() {
 
     if (!res.ok) throw new Error('Failed to fetch drivers');
     return await res.json();
+
   } catch (error) {
-    console.error("Driver API unavailable or timed out:", error);
-    return [];
+    console.error("Driver API unavailable or timed out, falling back:", error);
+
+    return await fetchDrivers();
   }
 }
 
@@ -44,7 +47,50 @@ export async function fetchNewConductors() {
     if (!res.ok) throw new Error('Failed to fetch conductors');
     return await res.json();
   } catch (error) {
-    console.error("Conductor API unavailable or timed out:", error);
-    return [];
+    console.error("Conductor API unavailable or timed out, falling back:", error);
+    return await fetchConductors();
   }
+}
+
+function getSupabaseHeaders() {
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+  };
+}
+
+export async function fetchBuses() {
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/buses?select=bus_id,bus_type,seat_capacity,plate_number`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch buses: ${res.status} ${res.statusText}`);
+  }
+
+  return await res.json();
+}
+
+export async function fetchDrivers() {
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/drivers?select=employeeNumber,firstName,middleName,lastName,phone,barangay,zipCode`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error('Supabase error body:', errorBody);
+    throw new Error(`Failed to fetch drivers: ${res.status} ${res.statusText}`);
+  }
+
+  return await res.json();
+}
+
+export async function fetchConductors() {
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/conductors?select=employeeNumber,firstName,middleName,lastName,phone,barangay,zipCode`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch conductors: ${res.status} ${res.statusText}`);
+  }
+
+  return await res.json();
 }
