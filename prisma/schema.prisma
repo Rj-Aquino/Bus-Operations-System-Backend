@@ -267,7 +267,7 @@ enum RentalRequestStatus {
 
 model RentalRequest {
   RentalRequestID   String @id
-  RentalBusAssignmentID String
+  RentalBusAssignmentID String?
   PickupLocation    String
   DropoffLocation   String
   NumberOfPassengers Int
@@ -279,7 +279,9 @@ model RentalRequest {
   CustomerContact String
 
   // Relation to RentalBusAssignment
-  RentalBusAssignment RentalBusAssignment @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
+  RentalBusAssignment RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
+
+  IsDeleted             Boolean @default(false)
 
   CreatedAt DateTime @default(now())
   UpdatedAt DateTime @updatedAt
