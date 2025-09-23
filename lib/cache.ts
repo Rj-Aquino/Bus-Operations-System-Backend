@@ -31,6 +31,8 @@ export const CACHE_KEYS = {
   RENTAL_REQUESTS_REJECTED: process.env.RENTAL_REQUESTS_CACHE_KEY_REJECTED,
   RENTAL_REQUESTS_COMPLETED: process.env.RENTAL_REQUESTS_CACHE_KEY_COMPLETED,
 
+  RENTAL_OPERATIONS_ALL: process.env.RENTAL_OPERATIONS_CACHE_KEY_ALL,
+
 };
 
 export async function getCache<T = any>(key: string): Promise<T | null> {
