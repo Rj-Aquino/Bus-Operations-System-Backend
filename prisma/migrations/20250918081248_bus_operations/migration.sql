@@ -209,7 +209,7 @@ CREATE TABLE "RentalDriver" (
 -- CreateTable
 CREATE TABLE "RentalRequest" (
     "RentalRequestID" TEXT NOT NULL,
-    "RentalBusAssignmentID" TEXT NOT NULL,
+    "RentalBusAssignmentID" TEXT,
     "PickupLocation" TEXT NOT NULL,
     "DropoffLocation" TEXT NOT NULL,
     "NumberOfPassengers" INTEGER NOT NULL,
@@ -219,6 +219,7 @@ CREATE TABLE "RentalRequest" (
     "Status" "RentalRequestStatus" NOT NULL DEFAULT 'Pending',
     "CustomerName" TEXT NOT NULL,
     "CustomerContact" TEXT NOT NULL,
+    "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
     "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMP(3) NOT NULL,
     "CreatedBy" TEXT,
@@ -291,4 +292,4 @@ ALTER TABLE "RentalBusAssignment" ADD CONSTRAINT "RentalBusAssignment_RentalBusA
 ALTER TABLE "RentalDriver" ADD CONSTRAINT "RentalDriver_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RentalRequest" ADD CONSTRAINT "RentalRequest_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RentalRequest" ADD CONSTRAINT "RentalRequest_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE SET NULL ON UPDATE CASCADE;
