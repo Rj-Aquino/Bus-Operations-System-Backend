@@ -21,8 +21,14 @@ const getHandler = async (request: NextRequest) => {
     ? `${RENTAL_REQUESTS_CACHE_KEY}_${statusParam}`
     : RENTAL_REQUESTS_CACHE_KEY;
 
-  // Try cache first
-  const cached = await getCache<any[]>(cacheKey);
+  // Try cache first (but don't fail if Redis is unavailable)
+  let cached = null;
+  try {
+    cached = await getCache<any[]>(cacheKey);
+  } catch (cacheError) {
+    console.warn('Cache retrieval failed, skipping cache:', cacheError);
+  }
+  
   if (cached) {
     const processed = cached.map(item => {
       if (
@@ -43,7 +49,7 @@ const getHandler = async (request: NextRequest) => {
     };
 
     if (statusParam !== null) {
-    const validStatuses = Object.values(RentalRequestStatus);
+    const validStatuses = ["Pending", "Approved", "Rejected", "Completed"];
 
     // Find enum value ignoring case
     const normalizedStatus = validStatuses.find(
@@ -94,7 +100,11 @@ const getHandler = async (request: NextRequest) => {
     return rr;
     });
 
-    await setCache(cacheKey, result);
+    try {
+      await setCache(cacheKey, result);
+    } catch (cacheError) {
+      console.warn('Cache set failed, continuing anyway:', cacheError);
+    }
 
     return NextResponse.json(result);
   } catch (err) {
@@ -130,9 +140,9 @@ const postHandler = async (request: NextRequest) => {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let normalizedStatus: RentalRequestStatus = RentalRequestStatus.Pending;
+    let normalizedStatus = "Pending" as RentalRequestStatus;
     if (Status) {
-      const validStatuses = Object.values(RentalRequestStatus);
+      const validStatuses = ["Pending", "Approved", "Rejected", "Completed"];
       const found = validStatuses.find(s => s.toLowerCase() === Status.toLowerCase());
       if (!found) return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
       normalizedStatus = found as RentalRequestStatus;
@@ -155,8 +165,12 @@ const postHandler = async (request: NextRequest) => {
     },
     });
 
-    // Invalidate cache
-    await setCache(RENTAL_REQUESTS_CACHE_KEY, null);
+    // Try to invalidate cache, but don't fail if Redis is unavailable
+    try {
+      await setCache(RENTAL_REQUESTS_CACHE_KEY, null);
+    } catch (cacheError) {
+      console.warn('Cache invalidation failed, continuing anyway:', cacheError);
+    }
 
     return NextResponse.json(newRentalRequest, { status: 201 });
   } catch (err) {
