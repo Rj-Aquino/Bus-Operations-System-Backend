@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/client": "^6.9.0",
+    "@prisma/client": "^6.10.1",
     "@upstash/redis": "^1.34.9",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
