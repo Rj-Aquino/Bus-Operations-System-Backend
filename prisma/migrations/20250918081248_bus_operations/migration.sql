@@ -2,7 +2,13 @@
 CREATE TYPE "BusOperationStatus" AS ENUM ('NotStarted', 'NotReady', 'InOperation');
 
 -- CreateEnum
+CREATE TYPE "AssignmentType" AS ENUM ('Regular', 'Rental');
+
+-- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('Reimbursement', 'Company_Cash');
+
+-- CreateEnum
+CREATE TYPE "RentalRequestStatus" AS ENUM ('Pending', 'Approved', 'Rejected', 'Completed');
 
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
@@ -91,6 +97,7 @@ CREATE TABLE "BusAssignment" (
     "BusAssignmentID" TEXT NOT NULL,
     "BusID" TEXT NOT NULL,
     "RouteID" TEXT NOT NULL,
+    "AssignmentType" "AssignmentType" NOT NULL DEFAULT 'Regular',
     "Battery" BOOLEAN NOT NULL DEFAULT false,
     "Lights" BOOLEAN NOT NULL DEFAULT false,
     "Oil" BOOLEAN NOT NULL DEFAULT false,
@@ -175,6 +182,52 @@ CREATE TABLE "TicketBusTripAssignment" (
     CONSTRAINT "TicketBusTripAssignment_pkey" PRIMARY KEY ("TicketBusTripID")
 );
 
+-- CreateTable
+CREATE TABLE "RentalBusAssignment" (
+    "RentalBusAssignmentID" TEXT NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "RentalBusAssignment_pkey" PRIMARY KEY ("RentalBusAssignmentID")
+);
+
+-- CreateTable
+CREATE TABLE "RentalDriver" (
+    "RentalDriverID" TEXT NOT NULL,
+    "RentalBusAssignmentID" TEXT NOT NULL,
+    "DriverID" TEXT NOT NULL,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "RentalDriver_pkey" PRIMARY KEY ("RentalDriverID")
+);
+
+-- CreateTable
+CREATE TABLE "RentalRequest" (
+    "RentalRequestID" TEXT NOT NULL,
+    "RentalBusAssignmentID" TEXT,
+    "PickupLocation" TEXT NOT NULL,
+    "DropoffLocation" TEXT NOT NULL,
+    "NumberOfPassengers" INTEGER NOT NULL,
+    "PickupDateAndTime" TIMESTAMP(3) NOT NULL,
+    "ExpectedArrivalTime" TIMESTAMP(3),
+    "SpecialRequirements" TEXT,
+    "Status" "RentalRequestStatus" NOT NULL DEFAULT 'Pending',
+    "CustomerName" TEXT NOT NULL,
+    "CustomerContact" TEXT NOT NULL,
+    "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "RentalRequest_pkey" PRIMARY KEY ("RentalRequestID")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "RouteStop_RouteID_StopID_key" ON "RouteStop"("RouteID", "StopID");
 
@@ -189,6 +242,9 @@ CREATE INDEX "RegularBusAssignment_DriverID_idx" ON "RegularBusAssignment"("Driv
 
 -- CreateIndex
 CREATE INDEX "RegularBusAssignment_ConductorID_idx" ON "RegularBusAssignment"("ConductorID");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RentalDriver_RentalBusAssignmentID_DriverID_key" ON "RentalDriver"("RentalBusAssignmentID", "DriverID");
 
 -- AddForeignKey
 ALTER TABLE "Quota_Policy" ADD CONSTRAINT "Quota_Policy_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -228,3 +284,12 @@ ALTER TABLE "TicketBusTripAssignment" ADD CONSTRAINT "TicketBusTripAssignment_Bu
 
 -- AddForeignKey
 ALTER TABLE "TicketBusTripAssignment" ADD CONSTRAINT "TicketBusTripAssignment_TicketTypeID_fkey" FOREIGN KEY ("TicketTypeID") REFERENCES "Ticket_Type"("TicketTypeID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RentalBusAssignment" ADD CONSTRAINT "RentalBusAssignment_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RentalDriver" ADD CONSTRAINT "RentalDriver_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RentalRequest" ADD CONSTRAINT "RentalRequest_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -9,21 +9,21 @@ const DRIVERS_CACHE_KEY = CACHE_KEYS.DRIVERS ?? '';
 
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  // if (error) {
+  //   return NextResponse.json({ error }, { status });
+  // }
 
   // Try cache first
-  const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);
-  if (cached) {
-    return NextResponse.json(
-      {
-        message: cached.length > 0 ? 'Drivers fetched successfully' : 'No drivers found',
-        data: cached,
-      },
-      { status: 200 }
-    );
-  }
+ // const cached = await getCache<any[]>(DRIVERS_CACHE_KEY);
+ // if (cached) {
+ //   return NextResponse.json(
+    //  {
+     //   message: cached.length > 0 ? 'Drivers fetched successfully' : 'No drivers found',
+    //    data: cached,
+    //  },
+    //  { status: 200 }
+  //  );
+ // }
 
   try {
     const employees = await fetchNewDrivers();

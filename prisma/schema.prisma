@@ -106,10 +106,17 @@ enum BusOperationStatus {
   InOperation
 }
 
+enum AssignmentType {
+  Regular
+  Rental
+}
+
 model BusAssignment {
   BusAssignmentID String @id
   BusID           String
   RouteID         String
+
+  AssignmentType  AssignmentType @default(Regular)
 
   Battery         Boolean @default(false)
   Lights          Boolean @default(false)
@@ -126,7 +133,9 @@ model BusAssignment {
   Status          BusOperationStatus @default(NotReady)
 
   Route Route @relation(fields: [RouteID], references: [RouteID])
+
   RegularBusAssignment RegularBusAssignment?
+  RentalBusAssignment  RentalBusAssignment?
 
   @@index([BusID])
 
@@ -218,3 +227,65 @@ model TicketBusTrip {
   CreatedBy String?
   UpdatedBy String?
 }
+
+model RentalBusAssignment {
+
+  RentalBusAssignmentID String @id
+  BusAssignment BusAssignment @relation(fields: [RentalBusAssignmentID], references: [BusAssignmentID])
+
+  RentalDrivers   RentalDriver[]
+  RentalRequests  RentalRequest[]
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+model RentalDriver {
+  RentalDriverID       String @id
+  RentalBusAssignmentID String
+  DriverID             String
+
+  // Relation to RentalBusAssignment
+  RentalBusAssignment RentalBusAssignment @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
+
+  @@unique([RentalBusAssignmentID, DriverID]) 
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+
+enum RentalRequestStatus {
+  Pending
+  Approved
+  Rejected
+  Completed
+}
+
+model RentalRequest {
+  RentalRequestID   String @id
+  RentalBusAssignmentID String?
+  PickupLocation    String
+  DropoffLocation   String
+  NumberOfPassengers Int
+  PickupDateAndTime DateTime
+  ExpectedArrivalTime DateTime?
+  SpecialRequirements String?
+  Status RentalRequestStatus @default(Pending)
+  CustomerName    String
+  CustomerContact String
+
+  // Relation to RentalBusAssignment
+  RentalBusAssignment RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
+
+  IsDeleted             Boolean @default(false)
+
+  CreatedAt DateTime @default(now())
+  UpdatedAt DateTime @updatedAt
+  CreatedBy String?
+  UpdatedBy String?
+}
+

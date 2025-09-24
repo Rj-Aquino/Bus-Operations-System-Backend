@@ -10,8 +10,9 @@ const allowedOrigins = [
   'https://boms.agilabuscorp.me',
   'http://192.168.0.168:3000',
   'http://192.168.0.132:3000',
-  // 'http://localhost:3000',
-  'http://192.168.1.14:3000'
+  'http://localhost:3000',
+  'http://192.168.1.14:3000',
+  'http://192.168.56.1:3000'
 ];
 
 export function withCors(handler: (req: NextRequest) => Promise<NextResponse>) {

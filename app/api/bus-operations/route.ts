@@ -4,7 +4,6 @@ import { BusOperationStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
-import { tr } from 'zod/v4/locales';
 
 const BUS_OPERATIONS_CACHE_KEY = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
 
@@ -54,7 +53,10 @@ const getHandler = async (request: NextRequest) => {
 
     // Fetch all bus assignments with their RegularBusAssignment and only the LatestBusTrip
     const busAssignments = await prisma.busAssignment.findMany({
-      where: whereClause,
+        where: {
+      ...whereClause,
+      AssignmentType: "Regular", // <-- Only get Regular assignments
+      },
       orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         BusAssignmentID: true,
