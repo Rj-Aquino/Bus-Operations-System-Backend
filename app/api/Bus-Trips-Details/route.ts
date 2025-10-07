@@ -12,6 +12,7 @@ async function fetchExternal(url: string, token: string) {
   if (!res.ok) return [];
   return res.json();
 }
+
 const getAssignmentSummary = async (request: NextRequest) => {
   const { error, token, status } = await authenticateRequest(request);
   // if (error) {
