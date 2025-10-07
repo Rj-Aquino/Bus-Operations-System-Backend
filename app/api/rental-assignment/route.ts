@@ -7,20 +7,20 @@ import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 
 const RENTAL_OPERATIONS_CACHE_KEY = CACHE_KEYS.RENTAL_OPERATIONS_ALL ?? '';
 
-const getHandler = async (request: NextRequest) => {
+export const GET = withCors(async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
     return NextResponse.json({ error }, { status });
   }
 
-  // query params
   const url = new URL(request.url);
-  const statusParam = url.searchParams.get('status');
+  const statusParam = url.searchParams.get('status')?.toUpperCase() ?? null;
+
   const cacheKey = statusParam
     ? `${RENTAL_OPERATIONS_CACHE_KEY}_${statusParam}`
     : RENTAL_OPERATIONS_CACHE_KEY;
 
-  // cache first
+  // Cache check
   const cached = await getCache<any[]>(cacheKey);
   if (cached) {
     const processed = cached.map(item => {
@@ -37,21 +37,26 @@ const getHandler = async (request: NextRequest) => {
   }
 
   try {
-    const whereClause: {
-      IsDeleted?: boolean;
-      Status?: BusOperationStatus;
-    } = {};
+    let statusClause: BusOperationStatus | undefined = undefined;
+    const validStatuses = Object.values(BusOperationStatus);
 
-    if (statusParam !== null) {
-      const validStatuses = Object.values(BusOperationStatus);
-      if (!validStatuses.includes(statusParam as BusOperationStatus)) {
+    if (statusParam) {
+      const match = validStatuses.find(s => s.toUpperCase() === statusParam);
+      if (!match) {
         return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
       }
-      whereClause.Status = statusParam as BusOperationStatus;
+      statusClause = match;
     }
 
-    // fetch rental bus assignments with relations
+    const whereClause: any = {
+      BusAssignment: {
+        IsDeleted: false,
+        ...(statusClause ? { Status: statusClause } : {}),
+      }
+    };
+
     const rentalAssignments = await prisma.rentalBusAssignment.findMany({
+      where: whereClause,
       orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
         RentalBusAssignmentID: true,
@@ -60,7 +65,6 @@ const getHandler = async (request: NextRequest) => {
         CreatedBy: true,
         UpdatedBy: true,
 
-        // relation to BusAssignment
         BusAssignment: {
           select: {
             BusAssignmentID: true,
@@ -93,7 +97,6 @@ const getHandler = async (request: NextRequest) => {
           },
         },
 
-        // relation to RentalDrivers
         RentalDrivers: {
           select: {
             RentalDriverID: true,
@@ -105,7 +108,6 @@ const getHandler = async (request: NextRequest) => {
           },
         },
 
-        // relation to RentalRequests
         RentalRequests: {
           select: {
             RentalRequestID: true,
@@ -122,15 +124,15 @@ const getHandler = async (request: NextRequest) => {
       },
     });
 
-    // post-process UpdatedAt/UpdatedBy
-    const result = rentalAssignments.map((assignment) => {
+    const result = rentalAssignments.map(assignment => {
       let processed = assignment;
       if (
         assignment.CreatedAt &&
         assignment.UpdatedAt &&
         new Date(assignment.CreatedAt).getTime() === new Date(assignment.UpdatedAt).getTime()
       ) {
-        processed = { ...assignment, UpdatedAt: null, UpdatedBy: null } as any;
+        processed = { ...assignment, UpdatedAt: null as any, UpdatedBy: null };
+
       }
       return processed;
     });
@@ -142,7 +144,6 @@ const getHandler = async (request: NextRequest) => {
     console.error('Error fetching rental bus assignments:', error);
     return NextResponse.json({ error: 'Failed to fetch rental bus assignments' }, { status: 500 });
   }
-};
+});
 
-export const GET = withCors(getHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
