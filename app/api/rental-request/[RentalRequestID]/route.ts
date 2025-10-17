@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
-import { RentalRequestStatus } from '@prisma/client';
+import { BusOperationStatus, RentalRequestStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { delCache, CACHE_KEYS } from '@/lib/cache';
+import { generateFormattedID } from '@/lib/idGenerator';
 
 const RENTAL_REQUESTS_CACHE_KEY = CACHE_KEYS.RENTAL_REQUESTS_ALL ?? '';
 
@@ -14,63 +15,229 @@ const putHandler = async (request: NextRequest) => {
   try {
     const url = new URL(request.url);
     const RentalRequestID = url.pathname.split('/').pop();
-
-    if (!RentalRequestID) {
-      return NextResponse.json({ error: 'RentalRequestID is required in the URL' }, { status: 400 });
-    }
+    if (!RentalRequestID) return NextResponse.json({ error: 'RentalRequestID is required in the URL' }, { status: 400 });
 
     const body = await request.json();
-    const {
-      RentalBusAssignmentID,
-      PickupLocation,
-      DropoffLocation,
-      NumberOfPassengers,
-      PickupDateAndTime,
-      ExpectedArrivalTime,
-      SpecialRequirements,
-      Status,
-      CustomerName,
-      CustomerContact,
-    } = body;
+    const { command, rentalRequestUpdates, rentalAssignmentUpdates, busAssignmentUpdates, drivers } = body;
 
-    // Validate required fields
-    if (!PickupLocation || !DropoffLocation || !NumberOfPassengers || !PickupDateAndTime || !CustomerName || !CustomerContact) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Normalize status
-    let normalizedStatus: RentalRequestStatus = RentalRequestStatus.Pending;
-    if (Status) {
-      const validStatuses = Object.values(RentalRequestStatus);
-      const found = validStatuses.find(s => s.toLowerCase() === Status.toLowerCase());
-      if (!found) return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
-      normalizedStatus = found as RentalRequestStatus;
-    }
-
-    const updatedRentalRequest = await prisma.rentalRequest.update({
+    const current = await prisma.rentalRequest.findUnique({
       where: { RentalRequestID },
-      data: {
-        RentalBusAssignmentID: RentalBusAssignmentID || null, // Nullable
-        PickupLocation,
-        DropoffLocation,
-        NumberOfPassengers,
-        PickupDateAndTime: new Date(PickupDateAndTime),
-        ExpectedArrivalTime: ExpectedArrivalTime ? new Date(ExpectedArrivalTime) : null,
-        SpecialRequirements: SpecialRequirements || null,
-        Status: normalizedStatus,
-        CustomerName,
-        CustomerContact,
-        UpdatedBy: user?.userId || null,
+      include: {
+        RentalBusAssignment: {
+          include: {
+            BusAssignment: true,
+            RentalDrivers: true,
+          },
+        },
       },
     });
+    if (!current) return NextResponse.json({ error: 'RentalRequest not found' }, { status: 404 });
 
-    // Invalidate cache
-    await delCache(RENTAL_REQUESTS_CACHE_KEY);
+    const actor = user?.userId ?? null;
 
-    return NextResponse.json(updatedRentalRequest, { status: 200 });
+    const allowedRBAFields = new Set([
+      'Battery','Lights','Oil','Water','Break','Air','Gas','Engine','TireCondition','Note'
+    ]);
+
+    const allowedBAFields = new Set([
+      'Battery','Lights','Oil','Water','Break','Air','Gas','Engine','TireCondition','Self_Driver','Self_Conductor','Status'
+    ]);
+
+    const findBAStatus = (val: any): BusOperationStatus | undefined => {
+      if (!val) return undefined;
+      const entries = Object.values(BusOperationStatus) as string[];
+      if (entries.includes(val)) return val as BusOperationStatus;
+      return entries.find(v => v.toLowerCase() === String(val).toLowerCase()) as BusOperationStatus | undefined;
+    };
+
+    const result = await prisma.$transaction(async (tx) => {
+      const currentStatus = current.Status;
+
+      // PENDING: do NOT allow payload updates to RentalRequest fields.
+      // Only "approve" command allowed -> sets RentalRequest.Status = Approved and BusAssignment.Status = NotReady.
+      if (currentStatus === RentalRequestStatus.Pending) {
+        if (rentalRequestUpdates && Object.keys(rentalRequestUpdates).length > 0) {
+          return Promise.reject(new Error('Updating RentalRequest fields is not allowed while Pending'));
+        }
+
+        if (command !== 'approve') {
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          });
+        }
+
+        const rba = current.RentalBusAssignment;
+        if (!rba || !rba.BusAssignment) return Promise.reject(new Error('Cannot approve: no associated BusAssignment'));
+
+        await tx.rentalRequest.update({
+          where: { RentalRequestID },
+          data: { Status: RentalRequestStatus.Approved, UpdatedBy: actor },
+        });
+
+        await tx.busAssignment.update({
+          where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID },
+          data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
+        });
+
+        // optional: allow busAssignmentUpdates & drivers under Approved+NotReady rules (rentalAssignmentUpdates NOT allowed here)
+        if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
+          const baData: any = {};
+          for (const key of Object.keys(busAssignmentUpdates)) {
+            if (!allowedBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on BusAssignment update`));
+            if (key === 'Status') {
+              const found = findBAStatus(busAssignmentUpdates[key]);
+              if (!found) return Promise.reject(new Error('Invalid BusAssignment Status'));
+              baData[key] = found;
+            } else {
+              baData[key] = busAssignmentUpdates[key];
+            }
+          }
+          if (Object.keys(baData).length > 0) {
+            baData.UpdatedBy = actor;
+            await tx.busAssignment.update({ where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID }, data: baData });
+          }
+        }
+
+        if (Array.isArray(drivers)) {
+          await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
+          for (const driverID of drivers) {
+            const rdID = await generateFormattedID('RD');
+            await tx.rentalDriver.create({
+              data: {
+                RentalDriverID: rdID,
+                RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                DriverID: String(driverID),
+                CreatedBy: actor,
+              },
+            });
+          }
+        }
+
+        return tx.rentalRequest.findUnique({
+          where: { RentalRequestID },
+          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+        });
+      }
+
+      // COMPLETED: no updates allowed
+      if (currentStatus === RentalRequestStatus.Completed) {
+        return tx.rentalRequest.findUnique({
+          where: { RentalRequestID },
+          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+        });
+      }
+
+      // APPROVED: behavior depends on BusAssignment.Status
+      if (currentStatus === RentalRequestStatus.Approved) {
+        const rba = current.RentalBusAssignment;
+        if (!rba || !rba.BusAssignment) return Promise.reject(new Error('No BusAssignment associated with this approved request'));
+
+        const ba = rba.BusAssignment;
+        const baStatus = ba.Status as BusOperationStatus;
+
+        // Approved + NotReady: allow busAssignmentUpdates and driver replacement (rentalAssignmentUpdates NOT allowed)
+        if (baStatus === BusOperationStatus.NotReady) {
+          if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
+            const baData: any = {};
+            for (const key of Object.keys(busAssignmentUpdates)) {
+              if (!allowedBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on BusAssignment update`));
+              if (key === 'Status') {
+                const found = findBAStatus(busAssignmentUpdates[key]);
+                if (!found) return Promise.reject(new Error('Invalid BusAssignment Status'));
+                baData[key] = found;
+              } else {
+                baData[key] = busAssignmentUpdates[key];
+              }
+            }
+            if (Object.keys(baData).length > 0) {
+              baData.UpdatedBy = actor;
+              await tx.busAssignment.update({ where: { BusAssignmentID: ba.BusAssignmentID }, data: baData });
+            }
+          }
+
+          if (command === 'toNotStarted') {
+            await tx.busAssignment.update({
+              where: { BusAssignmentID: ba.BusAssignmentID },
+              data: { Status: BusOperationStatus.NotStarted, UpdatedBy: actor },
+            });
+          }
+
+          if (Array.isArray(drivers)) {
+            await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
+            for (const driverID of drivers) {
+              const rdID = await generateFormattedID('RD');
+              await tx.rentalDriver.create({
+                data: {
+                  RentalDriverID: rdID,
+                  RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                  DriverID: String(driverID),
+                  CreatedBy: actor,
+                },
+              });
+            }
+          }
+
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          });
+        }
+
+        // Approved + NotStarted: only allow transition to InOperation
+        if (baStatus === BusOperationStatus.NotStarted) {
+          if (command === 'toInOperation' || (busAssignmentUpdates && 'Status' in busAssignmentUpdates)) {
+            const target = command === 'toInOperation' ? BusOperationStatus.InOperation : findBAStatus(busAssignmentUpdates.Status);
+            if (!target || target !== BusOperationStatus.InOperation) return Promise.reject(new Error('When NotStarted only transition to InOperation is permitted'));
+            await tx.busAssignment.update({ where: { BusAssignmentID: ba.BusAssignmentID }, data: { Status: BusOperationStatus.InOperation, UpdatedBy: actor } });
+          } else {
+            return Promise.reject(new Error('Only Status transition to InOperation allowed when BusAssignment is NotStarted'));
+          }
+
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          });
+        }
+
+        // Approved + InOperation: allow rentalAssignmentUpdates while InOperation and allow "complete"
+        if (baStatus === BusOperationStatus.InOperation) {
+          // allow updating RentalBusAssignment booleans/note during InOperation
+          if (rentalAssignmentUpdates && typeof rentalAssignmentUpdates === 'object') {
+            const data: any = {};
+            for (const key of Object.keys(rentalAssignmentUpdates)) {
+              if (!allowedRBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on RentalBusAssignment update`));
+              data[key] = rentalAssignmentUpdates[key];
+            }
+            if (Object.keys(data).length > 0) {
+              data.UpdatedBy = actor;
+              await tx.rentalBusAssignment.update({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID }, data });
+            }
+          }
+
+          if (command === 'complete') {
+            await tx.rentalRequest.update({ where: { RentalRequestID }, data: { Status: RentalRequestStatus.Completed, UpdatedBy: actor } });
+
+            return tx.rentalRequest.findUnique({
+              where: { RentalRequestID },
+              include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+            });
+          }
+
+          return Promise.reject(new Error('Only "complete" command allowed when BusAssignment is InOperation'));
+        }
+
+        return Promise.reject(new Error('BusAssignment updates not allowed for current BusAssignment status'));
+      }
+
+      return current;
+    });
+
+    return NextResponse.json(result, { status: 200 });
   } catch (err) {
     console.error('UPDATE_RENTAL_REQUEST_ERROR', err);
-    return NextResponse.json({ error: 'Failed to update rental request' }, { status: 500 });
+    try { console.error(JSON.stringify(err, Object.getOwnPropertyNames(err))); } catch {}
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to update rental request' }, { status: 500 });
   }
 };
 
@@ -110,7 +277,7 @@ const patchHandler = async (request: NextRequest) => {
     });
 
     // Invalidate cache
-    await delCache(RENTAL_REQUESTS_CACHE_KEY);
+    //await delCache(RENTAL_REQUESTS_CACHE_KEY);
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {
