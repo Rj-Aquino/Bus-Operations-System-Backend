@@ -639,6 +639,8 @@ async function seedRentalBusAssignments() {
       routeID: routeID1,
       status: BusOperationStatus.NotReady,
       allChecks: true,
+      note: 'All systems checked and verified, no damages found.',
+      driverIDs: [driverIDs[0], driverIDs[1]], // use global variable
     },
     {
       id: ids.rental2,
@@ -646,18 +648,22 @@ async function seedRentalBusAssignments() {
       routeID: routeID2,
       status: BusOperationStatus.NotStarted,
       allChecks: false,
+      note: 'Minor oil leakage detected during inspection.',
+      driverIDs: [driverIDs[2], driverIDs[3]],
     },
     {
       id: ids.rental3,
       busID: busIDs[15],
-      routeID: routeID1, // only 2 routes available
+      routeID: routeID1,
       status: BusOperationStatus.InOperation,
       allChecks: true,
+      note: null,
+      driverIDs: [driverIDs[4], driverIDs[5]],
     },
   ];
 
   for (const r of rentals) {
-    // Step 1: Create BusAssignment (AssignmentType = Rental)
+    // Step 1: Create BusAssignment
     await prisma.busAssignment.create({
       data: {
         BusAssignmentID: r.id,
@@ -681,16 +687,38 @@ async function seedRentalBusAssignments() {
       },
     });
 
-    // Step 2: Create RentalBusAssignment with same ID
+    // Step 2: Create RentalBusAssignment
     await prisma.rentalBusAssignment.create({
       data: {
-        RentalBusAssignmentID: r.id, // same as BusAssignmentID
+        RentalBusAssignmentID: r.id,
+        Battery: r.allChecks,
+        Lights: r.allChecks,
+        Oil: r.allChecks,
+        Water: r.allChecks,
+        Break: r.allChecks,
+        Air: r.allChecks,
+        Gas: r.allChecks,
+        Engine: r.allChecks,
+        TireCondition: r.allChecks,
+        Note: r.note,
         CreatedBy: 'OP-2024-00123',
       },
     });
+
+    // Step 3: Create two RentalDrivers for each rental
+    for (const driverID of r.driverIDs) {
+      await prisma.rentalDriver.create({
+        data: {
+          RentalDriverID: await generateFormattedID('RD'),
+          RentalBusAssignmentID: r.id,
+          DriverID: driverID,
+          CreatedBy: 'OP-2024-00123',
+        },
+      });
+    }
   }
 
-  console.log('Rental bus assignments seeded');
+  console.log('✅ Rental bus assignments (each with 2 drivers) seeded successfully');
   return ids;
 }
 
@@ -734,9 +762,11 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       rentalBusAssignmentID: rentalIDs.rental1,
       pickupLocation: 'Quezon City',
       dropoffLocation: 'Makati',
+      distanceKM: 12.5,
+      rentalPrice: 3500.0,
       passengers: 20,
-      pickup: new Date('2025-04-20T08:00:00'),
-      expectedArrival: new Date('2025-04-20T09:30:00'),
+      rentalDate: new Date('2025-04-20'),
+      durationDays: 1,
       requirements: 'Air conditioning required',
       customer: 'Juan Dela Cruz',
       contact: '09171234567',
@@ -747,9 +777,11 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       rentalBusAssignmentID: rentalIDs.rental2,
       pickupLocation: 'Pasay',
       dropoffLocation: 'Tagaytay',
+      distanceKM: 60.0,
+      rentalPrice: 8500.0,
       passengers: 40,
-      pickup: new Date('2025-04-21T07:00:00'),
-      expectedArrival: new Date('2025-04-21T09:00:00'),
+      rentalDate: new Date('2025-04-21'),
+      durationDays: 2,
       requirements: 'Reclining seats',
       customer: 'Maria Santos',
       contact: '09182345678',
@@ -760,9 +792,11 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       rentalBusAssignmentID: rentalIDs.rental3,
       pickupLocation: 'Manila',
       dropoffLocation: 'Batangas Port',
+      distanceKM: 100.0,
+      rentalPrice: 12500.0,
       passengers: 30,
-      pickup: new Date('2025-04-22T06:00:00'),
-      expectedArrival: new Date('2025-04-22T09:00:00'),
+      rentalDate: new Date('2025-04-22'),
+      durationDays: 1,
       requirements: null,
       customer: 'Pedro Reyes',
       contact: '09193456789',
@@ -777,9 +811,11 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
         RentalBusAssignmentID: r.rentalBusAssignmentID,
         PickupLocation: r.pickupLocation,
         DropoffLocation: r.dropoffLocation,
+        DistanceKM: r.distanceKM,
+        RentalPrice: r.rentalPrice,
         NumberOfPassengers: r.passengers,
-        PickupDateAndTime: r.pickup,
-        ExpectedArrivalTime: r.expectedArrival,
+        RentalDate: r.rentalDate,
+        Duration: r.durationDays,
         SpecialRequirements: r.requirements,
         Status: r.status,
         CustomerName: r.customer,
@@ -789,7 +825,7 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
     });
   }
 
-  console.log('Rental requests seeded');
+  console.log('✅ Rental requests seeded successfully');
 }
 
 async function main() {

@@ -229,17 +229,31 @@ model TicketBusTrip {
 }
 
 model RentalBusAssignment {
-
   RentalBusAssignmentID String @id
-  BusAssignment BusAssignment @relation(fields: [RentalBusAssignmentID], references: [BusAssignmentID])
+  BusAssignment         BusAssignment @relation(fields: [RentalBusAssignmentID], references: [BusAssignmentID])
 
-  RentalDrivers   RentalDriver[]
-  RentalRequests  RentalRequest[]
+  // Relations
+  RentalDrivers         RentalDriver[]
+  RentalRequests        RentalRequest[]
 
-  CreatedAt DateTime @default(now())
-  UpdatedAt DateTime @updatedAt
-  CreatedBy String?
-  UpdatedBy String?
+  // Damage indicators — true means damage exists
+  Battery               Boolean @default(false)
+  Lights                Boolean @default(false)
+  Oil                   Boolean @default(false)
+  Water                 Boolean @default(false)
+  Break                 Boolean @default(false)
+  Air                   Boolean @default(false)
+  Gas                   Boolean @default(false)
+  Engine                Boolean @default(false)
+  TireCondition         Boolean @default(false)
+
+  // Additional notes for other damages
+  Note                  String?
+
+  CreatedAt             DateTime @default(now())
+  UpdatedAt             DateTime @updatedAt
+  CreatedBy             String?
+  UpdatedBy             String?
 }
 
 model RentalDriver {
@@ -266,26 +280,33 @@ enum RentalRequestStatus {
 }
 
 model RentalRequest {
-  RentalRequestID   String @id
-  RentalBusAssignmentID String?
-  PickupLocation    String
-  DropoffLocation   String
-  NumberOfPassengers Int
-  PickupDateAndTime DateTime
-  ExpectedArrivalTime DateTime?
-  SpecialRequirements String?
-  Status RentalRequestStatus @default(Pending)
-  CustomerName    String
-  CustomerContact String
+  RentalRequestID        String   @id
+  RentalBusAssignmentID  String?
+
+  PickupLocation         String
+  DropoffLocation        String
+
+  DistanceKM             Float   // Distance in kilometers
+  RentalPrice            Float
+
+  NumberOfPassengers     Int
+  RentalDate             DateTime
+  Duration               Int     // Number of days instead of ExpectedArrivalTime
+
+  SpecialRequirements    String?
+
+  Status                 RentalRequestStatus @default(Pending)
+
+  CustomerName           String
+  CustomerContact        String
 
   // Relation to RentalBusAssignment
-  RentalBusAssignment RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
+  RentalBusAssignment    RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
 
-  IsDeleted             Boolean @default(false)
+  IsDeleted              Boolean  @default(false)
 
-  CreatedAt DateTime @default(now())
-  UpdatedAt DateTime @updatedAt
-  CreatedBy String?
-  UpdatedBy String?
+  CreatedAt              DateTime @default(now())
+  UpdatedAt              DateTime @updatedAt
+  CreatedBy              String?
+  UpdatedBy              String?
 }
-
