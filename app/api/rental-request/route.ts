@@ -9,7 +9,7 @@ import { fetchBuses, fetchNewBuses } from '@/lib/fetchExternal';
 
 const RENTAL_REQUESTS_CACHE_KEY = CACHE_KEYS.RENTAL_REQUESTS_ALL ?? '';
 
-export const getHandler = async (request: NextRequest) => {
+const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) return NextResponse.json({ error }, { status });
 
