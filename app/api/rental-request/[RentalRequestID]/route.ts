@@ -53,71 +53,80 @@ const putHandler = async (request: NextRequest) => {
     const result = await prisma.$transaction(async (tx) => {
       const currentStatus = current.Status;
 
-      // PENDING: do NOT allow payload updates to RentalRequest fields.
-      // Only "approve" command allowed -> sets RentalRequest.Status = Approved and BusAssignment.Status = NotReady.
+      // PENDING: Only "approve" or "reject" commands allowed.
       if (currentStatus === RentalRequestStatus.Pending) {
         if (rentalRequestUpdates && Object.keys(rentalRequestUpdates).length > 0) {
           return Promise.reject(new Error('Updating RentalRequest fields is not allowed while Pending'));
         }
 
-        if (command !== 'approve') {
+        if (command === 'approve') {
+          const rba = current.RentalBusAssignment;
+          if (!rba || !rba.BusAssignment) return Promise.reject(new Error('Cannot approve: no associated BusAssignment'));
+
+          await tx.rentalRequest.update({
+            where: { RentalRequestID },
+            data: { Status: RentalRequestStatus.Approved, UpdatedBy: actor },
+          });
+
+          await tx.busAssignment.update({
+            where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID },
+            data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
+          });
+
+          // optional: allow busAssignmentUpdates & drivers under Approved+NotReady rules (rentalAssignmentUpdates NOT allowed here)
+          if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
+            const baData: any = {};
+            for (const key of Object.keys(busAssignmentUpdates)) {
+              if (!allowedBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on BusAssignment update`));
+              if (key === 'Status') {
+                const found = findBAStatus(busAssignmentUpdates[key]);
+                if (!found) return Promise.reject(new Error('Invalid BusAssignment Status'));
+                baData[key] = found;
+              } else {
+                baData[key] = busAssignmentUpdates[key];
+              }
+            }
+            if (Object.keys(baData).length > 0) {
+              baData.UpdatedBy = actor;
+              await tx.busAssignment.update({ where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID }, data: baData });
+            }
+          }
+
+          if (Array.isArray(drivers)) {
+            await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
+            for (const driverID of drivers) {
+              const rdID = await generateFormattedID('RD');
+              await tx.rentalDriver.create({
+                data: {
+                  RentalDriverID: rdID,
+                  RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                  DriverID: String(driverID),
+                  CreatedBy: actor,
+                },
+              });
+            }
+          }
+
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          });
+        } else if (command === 'reject') {
+          await tx.rentalRequest.update({
+            where: { RentalRequestID },
+            data: { Status: RentalRequestStatus.Rejected, UpdatedBy: actor },
+          });
+
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          });
+        } else {
           return tx.rentalRequest.findUnique({
             where: { RentalRequestID },
             include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
           });
         }
-
-        const rba = current.RentalBusAssignment;
-        if (!rba || !rba.BusAssignment) return Promise.reject(new Error('Cannot approve: no associated BusAssignment'));
-
-        await tx.rentalRequest.update({
-          where: { RentalRequestID },
-          data: { Status: RentalRequestStatus.Approved, UpdatedBy: actor },
-        });
-
-        await tx.busAssignment.update({
-          where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID },
-          data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
-        });
-
-        // optional: allow busAssignmentUpdates & drivers under Approved+NotReady rules (rentalAssignmentUpdates NOT allowed here)
-        if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
-          const baData: any = {};
-          for (const key of Object.keys(busAssignmentUpdates)) {
-            if (!allowedBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on BusAssignment update`));
-            if (key === 'Status') {
-              const found = findBAStatus(busAssignmentUpdates[key]);
-              if (!found) return Promise.reject(new Error('Invalid BusAssignment Status'));
-              baData[key] = found;
-            } else {
-              baData[key] = busAssignmentUpdates[key];
-            }
-          }
-          if (Object.keys(baData).length > 0) {
-            baData.UpdatedBy = actor;
-            await tx.busAssignment.update({ where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID }, data: baData });
-          }
-        }
-
-        if (Array.isArray(drivers)) {
-          await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
-          for (const driverID of drivers) {
-            const rdID = await generateFormattedID('RD');
-            await tx.rentalDriver.create({
-              data: {
-                RentalDriverID: rdID,
-                RentalBusAssignmentID: rba.RentalBusAssignmentID,
-                DriverID: String(driverID),
-                CreatedBy: actor,
-              },
-            });
-          }
-        }
-
-        return tx.rentalRequest.findUnique({
-          where: { RentalRequestID },
-          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
-        });
       }
 
       // COMPLETED: no updates allowed
