@@ -235,6 +235,7 @@ model RentalBusAssignment {
   // Relations
   RentalDrivers         RentalDriver[]
   RentalRequests        RentalRequest[]
+  DamageReports         DamageReport[]
 
   // Damage indicators — true means damage exists
   Battery               Boolean @default(false)
@@ -303,7 +304,42 @@ model RentalRequest {
   // Relation to RentalBusAssignment
   RentalBusAssignment    RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
 
+  // Relation to DamageReports
+  DamageReports          DamageReport[]
+
   IsDeleted              Boolean  @default(false)
+
+  CreatedAt              DateTime @default(now())
+  UpdatedAt              DateTime @updatedAt
+  CreatedBy              String?
+  UpdatedBy              String?
+}
+
+model DamageReport {
+  DamageReportID         String   @id
+  RentalRequestID        String
+  RentalBusAssignmentID  String
+
+  // Vehicle condition checks (true = damaged/issue found)
+  Battery                Boolean  @default(false)
+  Lights                 Boolean  @default(false)
+  Oil                    Boolean  @default(false)
+  Water                  Boolean  @default(false)
+  Brake                  Boolean  @default(false)
+  Air                    Boolean  @default(false)
+  Gas                    Boolean  @default(false)
+  Engine                 Boolean  @default(false)
+  TireCondition          Boolean  @default(false)
+
+  // Additional notes
+  Note                   String?
+
+  // When the damage check was performed
+  CheckDate              DateTime @default(now())
+
+  // Relations
+  RentalRequest          RentalRequest @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
+  RentalBusAssignment    RentalBusAssignment @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID], onDelete: Cascade)
 
   CreatedAt              DateTime @default(now())
   UpdatedAt              DateTime @updatedAt
