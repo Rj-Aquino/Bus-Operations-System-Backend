@@ -129,11 +129,59 @@ const putHandler = async (request: NextRequest) => {
         }
       }
 
-      // COMPLETED: no updates allowed
+      // COMPLETED: allow damage report creation only
       if (currentStatus === RentalRequestStatus.Completed) {
+        const rba = current.RentalBusAssignment;
+        if (!rba) return Promise.reject(new Error('No RentalBusAssignment found for this completed request'));
+
+        // Only allow damage report creation for completed rentals
+        if (rentalRequestUpdates && rentalRequestUpdates.damageReport) {
+          const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
+          const DamageReportID = await generateFormattedID('DR');
+
+          const damageData: any = {
+            DamageReportID,
+            RentalRequestID,
+            RentalBusAssignmentID: rba.RentalBusAssignmentID,
+            Note: note || null,
+            CheckDate: checkDate ? new Date(checkDate) : new Date(),
+            CreatedBy: actor,
+          };
+
+          // Map vehicle condition object to individual boolean fields
+          if (vehicleCondition && typeof vehicleCondition === 'object') {
+            damageData.Battery = vehicleCondition.Battery || false;
+            damageData.Lights = vehicleCondition.Lights || false;
+            damageData.Oil = vehicleCondition.Oil || false;
+            damageData.Water = vehicleCondition.Water || false;
+            damageData.Brake = vehicleCondition.Brake || false;
+            damageData.Air = vehicleCondition.Air || false;
+            damageData.Gas = vehicleCondition.Gas || false;
+            damageData.Engine = vehicleCondition.Engine || false;
+            damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
+          }
+
+          await tx.damageReport.create({ data: damageData });
+
+          return tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            include: { 
+              RentalBusAssignment: { 
+                include: { 
+                  BusAssignment: true, 
+                  RentalDrivers: true,
+                  DamageReports: true
+                } 
+              },
+              DamageReports: true
+            },
+          });
+        }
+
+        // If no damage report provided, just return current state
         return tx.rentalRequest.findUnique({
           where: { RentalRequestID },
-          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true, DamageReports: true } }, DamageReports: true },
         });
       }
 
@@ -224,12 +272,52 @@ const putHandler = async (request: NextRequest) => {
             }
           }
 
-          if (command === 'complete') {
+          if (command === 'complete' || command === 'updateStatus') {
+            // Update the rental request status to Completed
             await tx.rentalRequest.update({ where: { RentalRequestID }, data: { Status: RentalRequestStatus.Completed, UpdatedBy: actor } });
+
+            // If damage report data is provided, create a damage report
+            if (rentalRequestUpdates && rentalRequestUpdates.damageReport) {
+              const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
+              const DamageReportID = await generateFormattedID('DR');
+
+              const damageData: any = {
+                DamageReportID,
+                RentalRequestID,
+                RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                Note: note || null,
+                CheckDate: checkDate ? new Date(checkDate) : new Date(),
+                CreatedBy: actor,
+              };
+
+              // Map vehicle condition object to individual boolean fields
+              if (vehicleCondition && typeof vehicleCondition === 'object') {
+                damageData.Battery = vehicleCondition.Battery || false;
+                damageData.Lights = vehicleCondition.Lights || false;
+                damageData.Oil = vehicleCondition.Oil || false;
+                damageData.Water = vehicleCondition.Water || false;
+                damageData.Brake = vehicleCondition.Brake || false;
+                damageData.Air = vehicleCondition.Air || false;
+                damageData.Gas = vehicleCondition.Gas || false;
+                damageData.Engine = vehicleCondition.Engine || false;
+                damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
+              }
+
+              await tx.damageReport.create({ data: damageData });
+            }
 
             return tx.rentalRequest.findUnique({
               where: { RentalRequestID },
-              include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
+              include: { 
+                RentalBusAssignment: { 
+                  include: { 
+                    BusAssignment: true, 
+                    RentalDrivers: true,
+                    DamageReports: true
+                  } 
+                },
+                DamageReports: true
+              },
             });
           }
 
