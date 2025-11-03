@@ -217,7 +217,97 @@ const deleteHandler = async (request: NextRequest) => {
   }
 };
 
+/**
+ * PATCH /api/damage-report?damageReportId=xxx
+ * Updates the status of a damage report
+ */
+const patchHandler = async (request: NextRequest) => {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const damageReportId = searchParams.get('damageReportId');
+
+    if (!damageReportId) {
+      return NextResponse.json(
+        { error: 'damageReportId is required' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { status: reportStatus } = body;
+
+    if (!reportStatus) {
+      return NextResponse.json(
+        { error: 'status is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status value
+    if (!['Pending', 'Accepted', 'Rejected'].includes(reportStatus)) {
+      return NextResponse.json(
+        { error: 'Invalid status. Must be Pending, Accepted, or Rejected' },
+        { status: 400 }
+      );
+    }
+
+    // Check if damage report exists
+    const existingReport = await prisma.damageReport.findUnique({
+      where: { DamageReportID: damageReportId }
+    });
+
+    if (!existingReport) {
+      return NextResponse.json(
+        { error: 'Damage report not found' },
+        { status: 404 }
+      );
+    }
+
+    // Update the damage report status
+    const updatedReport = await prisma.damageReport.update({
+      where: { DamageReportID: damageReportId },
+      data: {
+        Status: reportStatus,
+        UpdatedBy: user?.userId || null,
+      },
+      include: {
+        RentalRequest: {
+          select: {
+            RentalRequestID: true,
+            CustomerName: true,
+            Status: true
+          }
+        },
+        RentalBusAssignment: {
+          include: {
+            BusAssignment: {
+              select: {
+                BusID: true,
+                BusAssignmentID: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(updatedReport, { status: 200 });
+  } catch (err) {
+    console.error('UPDATE_DAMAGE_REPORT_ERROR', err);
+    return NextResponse.json(
+      { error: 'Failed to update damage report' },
+      { status: 500 }
+    );
+  }
+};
+
 export const POST = withCors(postHandler);
 export const GET = withCors(getHandler);
+export const PATCH = withCors(patchHandler);
 export const DELETE = withCors(deleteHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
