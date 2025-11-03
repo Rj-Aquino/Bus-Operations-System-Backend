@@ -114,6 +114,8 @@ const postHandler = async (request: NextRequest) => {
 /**
  * GET /api/damage-report?rentalRequestId=xxx
  * Retrieves damage reports for a specific rental request
+ * GET /api/damage-report
+ * Retrieves all damage reports
  */
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
@@ -125,22 +127,27 @@ const getHandler = async (request: NextRequest) => {
     const { searchParams } = new URL(request.url);
     const rentalRequestId = searchParams.get('rentalRequestId');
 
-    if (!rentalRequestId) {
-      return NextResponse.json(
-        { error: 'rentalRequestId query parameter is required' },
-        { status: 400 }
-      );
-    }
+    // If rentalRequestId is provided, filter by it
+    const whereClause = rentalRequestId ? { RentalRequestID: rentalRequestId } : {};
 
     const damageReports = await prisma.damageReport.findMany({
-      where: {
-        RentalRequestID: rentalRequestId
-      },
+      where: whereClause,
       include: {
-        RentalRequest: true,
+        RentalRequest: {
+          select: {
+            RentalRequestID: true,
+            CustomerName: true,
+            Status: true
+          }
+        },
         RentalBusAssignment: {
           include: {
-            BusAssignment: true
+            BusAssignment: {
+              select: {
+                BusID: true,
+                BusAssignmentID: true
+              }
+            }
           }
         }
       },
