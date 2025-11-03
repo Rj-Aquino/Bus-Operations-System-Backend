@@ -166,6 +166,58 @@ const getHandler = async (request: NextRequest) => {
   }
 };
 
+/**
+ * DELETE /api/damage-report?damageReportId=xxx
+ * Deletes a specific damage report
+ */
+const deleteHandler = async (request: NextRequest) => {
+  const { user, error, status } = await authenticateRequest(request);
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const damageReportId = searchParams.get('damageReportId');
+
+    if (!damageReportId) {
+      return NextResponse.json(
+        { error: 'damageReportId is required' },
+        { status: 400 }
+      );
+    }
+
+    // Check if damage report exists
+    const existingReport = await prisma.damageReport.findUnique({
+      where: { DamageReportID: damageReportId }
+    });
+
+    if (!existingReport) {
+      return NextResponse.json(
+        { error: 'Damage report not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete the damage report
+    await prisma.damageReport.delete({
+      where: { DamageReportID: damageReportId }
+    });
+
+    return NextResponse.json(
+      { message: 'Damage report deleted successfully' },
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error('DELETE_DAMAGE_REPORT_ERROR', err);
+    return NextResponse.json(
+      { error: 'Failed to delete damage report' },
+      { status: 500 }
+    );
+  }
+};
+
 export const POST = withCors(postHandler);
 export const GET = withCors(getHandler);
+export const DELETE = withCors(deleteHandler);
 export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
