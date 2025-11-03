@@ -19,8 +19,10 @@ const postHandler = async (request: NextRequest) => {
     const {
       damageReportId,
       priority = 'Medium',
+      workTitle,
       assignedTo,
       scheduledDate,
+      dueDate,
       estimatedCost,
       workNotes
     } = body;
@@ -91,8 +93,10 @@ const postHandler = async (request: NextRequest) => {
         DamageReportID: damageReportId,
         BusID: busId,
         Priority: priority,
+        WorkTitle: workTitle || null,
         AssignedTo: assignedTo || null,
         ScheduledDate: scheduledDate ? new Date(scheduledDate) : null,
+        DueDate: dueDate ? new Date(dueDate) : null,
         EstimatedCost: estimatedCost || null,
         WorkNotes: workNotes || null,
         CreatedBy: user?.userId || null,
@@ -214,8 +218,10 @@ const patchHandler = async (request: NextRequest) => {
     const {
       status: workStatus,
       priority,
+      workTitle,
       assignedTo,
       scheduledDate,
+      dueDate,
       completedDate,
       estimatedCost,
       actualCost,
@@ -241,8 +247,10 @@ const patchHandler = async (request: NextRequest) => {
 
     if (workStatus !== undefined) updateData.Status = workStatus;
     if (priority !== undefined) updateData.Priority = priority;
+    if (workTitle !== undefined) updateData.WorkTitle = workTitle;
     if (assignedTo !== undefined) updateData.AssignedTo = assignedTo;
     if (scheduledDate !== undefined) updateData.ScheduledDate = scheduledDate ? new Date(scheduledDate) : null;
+    if (dueDate !== undefined) updateData.DueDate = dueDate ? new Date(dueDate) : null;
     if (completedDate !== undefined) updateData.CompletedDate = completedDate ? new Date(completedDate) : null;
     if (estimatedCost !== undefined) updateData.EstimatedCost = estimatedCost;
     if (actualCost !== undefined) updateData.ActualCost = actualCost;

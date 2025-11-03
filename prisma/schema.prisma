@@ -380,9 +380,12 @@ model MaintenanceWork {
   Status                 MaintenanceStatus @default(Pending)
   Priority               MaintenancePriority @default(Medium)
   
+  WorkTitle              String?  // Title/summary of the maintenance work
+  
   AssignedTo             String?  // Technician/Mechanic ID or name
   
   ScheduledDate          DateTime?
+  DueDate                DateTime?  // Target completion date
   CompletedDate          DateTime?
   
   EstimatedCost          Float?
