@@ -397,8 +397,50 @@ model MaintenanceWork {
   // Relation to DamageReport (one-to-one)
   DamageReport           DamageReport @relation(fields: [DamageReportID], references: [DamageReportID], onDelete: Cascade)
 
+  // Relation to Tasks (one-to-many)
+  Tasks                  Task[]
+
   CreatedAt              DateTime @default(now())
   UpdatedAt              DateTime @updatedAt
   CreatedBy              String?
   UpdatedBy              String?
 }
+
+model Task {
+  TaskID                 String   @id @default(cuid())
+  MaintenanceWorkID      String
+  
+  TaskNumber             String?  // Auto-generated: TSK-001, TSK-002, etc.
+  TaskName               String
+  TaskType               String?  // General, Repair, Inspection, etc.
+  TaskDescription        String?
+  
+  AssignedTo             String?  // Specific mechanic assigned to this task
+  Status                 TaskStatus @default(Pending)
+  Priority               String?  // Can inherit from parent or be set independently
+  
+  StartDate              DateTime?
+  CompletedDate          DateTime?
+  EstimatedHours         Float?
+  ActualHours            Float?
+  
+  Notes                  String?
+  
+  // Relation to MaintenanceWork (many-to-one)
+  MaintenanceWork        MaintenanceWork @relation(fields: [MaintenanceWorkID], references: [MaintenanceWorkID], onDelete: Cascade)
+
+  CreatedAt              DateTime @default(now())
+  UpdatedAt              DateTime @updatedAt
+  CreatedBy              String?
+  UpdatedBy              String?
+
+  @@index([MaintenanceWorkID])
+  @@index([Status])
+}
+
+enum TaskStatus {
+  Pending
+  InProgress
+  Completed
+}
+
