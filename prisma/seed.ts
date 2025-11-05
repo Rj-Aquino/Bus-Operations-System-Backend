@@ -756,67 +756,64 @@ async function seedRentalDrivers(rentalIDs: { [key: string]: string }) {
 }
 
 async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
-  const requests = [
-    {
-      id: await generateFormattedID('RR'),
-      rentalBusAssignmentID: rentalIDs.rental1,
-      pickupLocation: 'Quezon City',
-      dropoffLocation: 'Makati',
-      distanceKM: 12.5,
-      rentalPrice: 3500.0,
-      passengers: 20,
-      rentalDate: new Date('2025-04-20'),
-      durationDays: 1,
-      requirements: 'Air conditioning required',
-      customer: 'Juan Dela Cruz',
-      contact: '09171234567',
-      status: 'Approved' as const,
-    },
-    {
-      id: await generateFormattedID('RR'),
-      rentalBusAssignmentID: rentalIDs.rental2,
-      pickupLocation: 'Pasay',
-      dropoffLocation: 'Tagaytay',
-      distanceKM: 60.0,
-      rentalPrice: 8500.0,
-      passengers: 40,
-      rentalDate: new Date('2025-04-21'),
-      durationDays: 2,
-      requirements: 'Reclining seats',
-      customer: 'Maria Santos',
-      contact: '09182345678',
-      status: 'Pending' as const,
-    },
-    {
-      id: await generateFormattedID('RR'),
-      rentalBusAssignmentID: rentalIDs.rental3,
-      pickupLocation: 'Manila',
-      dropoffLocation: 'Batangas Port',
-      distanceKM: 100.0,
-      rentalPrice: 12500.0,
-      passengers: 30,
-      rentalDate: new Date('2025-04-22'),
-      durationDays: 1,
-      requirements: null,
-      customer: 'Pedro Reyes',
-      contact: '09193456789',
-      status: 'Completed' as const,
-    },
+  const rentalIDsArray = Object.values(rentalIDs);
+  
+  // 5 Pending requests
+  const pendingRequests = [
+    { pickup: 'Quezon City', dropoff: 'Makati', distance: 12.5, price: 3500, passengers: 20, customer: 'Juan Dela Cruz', contact: '09171234567' },
+    { pickup: 'Manila', dropoff: 'Pasig', distance: 8.0, price: 2500, passengers: 15, customer: 'Maria Garcia', contact: '09182345678' },
+    { pickup: 'Caloocan', dropoff: 'Mandaluyong', distance: 10.0, price: 3000, passengers: 18, customer: 'Pedro Santos', contact: '09193456789' },
+    { pickup: 'Parañaque', dropoff: 'Taguig', distance: 7.5, price: 2200, passengers: 12, customer: 'Ana Reyes', contact: '09204567890' },
+    { pickup: 'Valenzuela', dropoff: 'Malabon', distance: 6.0, price: 1800, passengers: 10, customer: 'Jose Cruz', contact: '09215678901' },
   ];
 
-  for (const r of requests) {
+  // 5 Approved requests
+  const approvedRequests = [
+    { pickup: 'Pasay', dropoff: 'Tagaytay', distance: 60.0, price: 8500, passengers: 40, customer: 'Rosa Martinez', contact: '09226789012' },
+    { pickup: 'Muntinlupa', dropoff: 'Cavite', distance: 25.0, price: 5000, passengers: 30, customer: 'Carlos Diaz', contact: '09237890123' },
+    { pickup: 'Las Piñas', dropoff: 'Bacoor', distance: 15.0, price: 3800, passengers: 22, customer: 'Elena Torres', contact: '09248901234' },
+    { pickup: 'Taguig', dropoff: 'Laguna', distance: 45.0, price: 7200, passengers: 35, customer: 'Miguel Ramos', contact: '09259012345' },
+    { pickup: 'Makati', dropoff: 'Alabang', distance: 18.0, price: 4200, passengers: 25, customer: 'Sofia Valdez', contact: '09260123456' },
+  ];
+
+  // 5 Rejected requests
+  const rejectedRequests = [
+    { pickup: 'Quezon City', dropoff: 'Baguio', distance: 250.0, price: 35000, passengers: 50, customer: 'Roberto Lim', contact: '09271234567' },
+    { pickup: 'Manila', dropoff: 'Subic', distance: 120.0, price: 18000, passengers: 45, customer: 'Angelica Tan', contact: '09282345678' },
+    { pickup: 'Pasig', dropoff: 'Bataan', distance: 140.0, price: 20000, passengers: 48, customer: 'Diego Flores', contact: '09293456789' },
+    { pickup: 'Makati', dropoff: 'Pampanga', distance: 80.0, price: 12000, passengers: 38, customer: 'Isabella Cruz', contact: '09304567890' },
+    { pickup: 'Taguig', dropoff: 'Bulacan', distance: 50.0, price: 8000, passengers: 32, customer: 'Lucas Santos', contact: '09315678901' },
+  ];
+
+  // 5 Completed requests
+  const completedRequests = [
+    { pickup: 'Manila', dropoff: 'Batangas Port', distance: 100.0, price: 12500, passengers: 30, customer: 'Patricia Gomez', contact: '09326789012' },
+    { pickup: 'Quezon City', dropoff: 'Antipolo', distance: 28.0, price: 5500, passengers: 26, customer: 'Fernando Lopez', contact: '09337890123' },
+    { pickup: 'Pasay', dropoff: 'Imus', distance: 22.0, price: 4800, passengers: 24, customer: 'Gabriela Morales', contact: '09348901234' },
+    { pickup: 'Caloocan', dropoff: 'Marikina', distance: 16.0, price: 3900, passengers: 19, customer: 'Rafael Pascual', contact: '09359012345' },
+    { pickup: 'Parañaque', dropoff: 'Dasmariñas', distance: 30.0, price: 6000, passengers: 28, customer: 'Valentina Rivera', contact: '09360123456' },
+  ];
+
+  const allRequests = [
+    ...pendingRequests.map((r, i) => ({ ...r, status: 'Pending' as const, rentalID: rentalIDsArray[i % rentalIDsArray.length], date: new Date('2025-04-20'), duration: 1 })),
+    ...approvedRequests.map((r, i) => ({ ...r, status: 'Approved' as const, rentalID: rentalIDsArray[i % rentalIDsArray.length], date: new Date('2025-04-21'), duration: 2 })),
+    ...rejectedRequests.map((r, i) => ({ ...r, status: 'Rejected' as const, rentalID: rentalIDsArray[i % rentalIDsArray.length], date: new Date('2025-04-22'), duration: 3 })),
+    ...completedRequests.map((r, i) => ({ ...r, status: 'Completed' as const, rentalID: rentalIDsArray[i % rentalIDsArray.length], date: new Date('2025-04-23'), duration: 1 })),
+  ];
+
+  for (const r of allRequests) {
     await prisma.rentalRequest.create({
       data: {
-        RentalRequestID: r.id,
-        RentalBusAssignmentID: r.rentalBusAssignmentID,
-        PickupLocation: r.pickupLocation,
-        DropoffLocation: r.dropoffLocation,
-        DistanceKM: r.distanceKM,
-        RentalPrice: r.rentalPrice,
+        RentalRequestID: await generateFormattedID('RR'),
+        RentalBusAssignmentID: r.rentalID,
+        PickupLocation: r.pickup,
+        DropoffLocation: r.dropoff,
+        DistanceKM: r.distance,
+        RentalPrice: r.price,
         NumberOfPassengers: r.passengers,
-        RentalDate: r.rentalDate,
-        Duration: r.durationDays,
-        SpecialRequirements: r.requirements,
+        RentalDate: r.date,
+        Duration: r.duration,
+        SpecialRequirements: null,
         Status: r.status,
         CustomerName: r.customer,
         CustomerContact: r.contact,
@@ -825,7 +822,294 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
     });
   }
 
-  console.log('✅ Rental requests seeded successfully');
+  console.log('✅ Rental requests seeded successfully (20 total: 5 per status)');
+}
+
+async function seedDamageReports() {
+  const rentalRequests = await prisma.rentalRequest.findMany({ 
+    take: 20, 
+    where: { RentalBusAssignmentID: { not: null } },
+    include: { RentalBusAssignment: true } 
+  });
+  
+  if (rentalRequests.length === 0) {
+    console.log('⚠️  No rental requests found. Skipping damage report seeding.');
+    return;
+  }
+  
+  // 5 NA reports
+  const naReports = [
+    { description: 'No damage found during routine inspection' },
+    { description: 'Bus in excellent condition after cleaning' },
+    { description: 'Preventive maintenance check - no issues' },
+    { description: 'False alarm - reported issue not found' },
+    { description: 'Duplicate report - already addressed' },
+  ];
+
+  // 5 Pending reports
+  const pendingReports = [
+    { description: 'Minor scratch on left side panel' },
+    { description: 'Seat cushion worn out on row 5' },
+    { description: 'Air conditioning system making noise' },
+    { description: 'Windshield wiper not working properly' },
+    { description: 'Door mechanism slightly jammed' },
+  ];
+
+  // 10 Accepted reports (to support 5 with details + 5 without details)
+  const acceptedReports = [
+    { description: 'Brake system needs immediate attention' },
+    { description: 'Engine overheating during operation' },
+    { description: 'Transmission shifting problems' },
+    { description: 'Suspension system damaged' },
+    { description: 'Electrical wiring issues' },
+    { description: 'Hydraulic system leakage detected' },
+    { description: 'Steering mechanism malfunction' },
+    { description: 'Fuel system contamination' },
+    { description: 'Exhaust system damage' },
+    { description: 'Cooling fan not working' },
+  ];
+
+  // 5 Rejected reports
+  const rejectedReports = [
+    { description: 'Cosmetic issue - not affecting operation' },
+    { description: 'User error - not actual damage' },
+    { description: 'Wear and tear - within acceptable limits' },
+    { description: 'Insufficient evidence of damage' },
+    { description: 'Already fixed in previous maintenance' },
+  ];
+
+  const allReports = [
+    ...naReports.map(r => ({ ...r, status: 'NA' as const })),
+    ...pendingReports.map(r => ({ ...r, status: 'Pending' as const })),
+    ...acceptedReports.map(r => ({ ...r, status: 'Accepted' as const })),
+    ...rejectedReports.map(r => ({ ...r, status: 'Rejected' as const })),
+  ];
+
+  for (let i = 0; i < allReports.length; i++) {
+    const r = allReports[i];
+    const rentalRequest = rentalRequests[i % rentalRequests.length];
+    
+    // Skip if RentalBusAssignmentID is null
+    if (!rentalRequest.RentalBusAssignmentID) continue;
+    
+    // Determine damage based on status
+    // NA, Pending, Rejected: All true (no actual damage)
+    // Accepted: Some false (actual damage requiring maintenance)
+    const hasNoDamage = r.status === 'NA' || r.status === 'Pending' || r.status === 'Rejected';
+    
+    await prisma.damageReport.create({
+      data: {
+        DamageReportID: await generateFormattedID('DR'),
+        RentalRequestID: rentalRequest.RentalRequestID,
+        RentalBusAssignmentID: rentalRequest.RentalBusAssignmentID,
+        Battery: hasNoDamage ? true : (i % 3 === 0 ? false : true),
+        Lights: true,
+        Oil: true,
+        Water: true,
+        Brake: hasNoDamage ? true : false,
+        Air: true,
+        Gas: true,
+        Engine: hasNoDamage ? true : false,
+        TireCondition: hasNoDamage ? true : (i % 2 === 0 ? false : true),
+        Note: r.description,
+        Status: r.status,
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+  }
+
+  console.log('✅ Damage reports seeded successfully (25 total: 5 NA, 5 Pending, 10 Accepted, 5 Rejected)');
+}
+
+async function seedMaintenanceWorks() {
+  // Get accepted damage reports that don't have maintenance work yet
+  const acceptedReports = await prisma.damageReport.findMany({
+    where: { Status: 'Accepted' },
+    include: { 
+      RentalBusAssignment: {
+        include: {
+          BusAssignment: true
+        }
+      }
+    },
+  });
+  
+  if (acceptedReports.length === 0) {
+    console.log('⚠️  No accepted damage reports found. Skipping maintenance work seeding.');
+    return [];
+  }
+
+  let workNoCounter = 1;
+  const maintenanceWorkIDs: string[] = [];
+
+  // We can only create maintenance works for accepted damage reports
+  // Let's create up to 10 total (5 with details, 5 without details)
+  const statusCycle: Array<'Pending' | 'InProgress' | 'Completed' | 'Cancelled'> = ['Pending', 'InProgress', 'Completed', 'Cancelled'];
+  
+  const workTitles = [
+    'Brake System Repair',
+    'Engine Cooling System Repair',
+    'Transmission Service',
+    'Suspension Replacement',
+    'Electrical System Repair',
+  ];
+
+  const workDescriptions = [
+    'Complete brake system overhaul and replacement',
+    'Fix overheating issue and cooling system maintenance',
+    'Transmission fluid change and adjustment',
+    'Replace damaged suspension components',
+    'Fix wiring and electrical issues',
+  ];
+
+  // Create 5 maintenance works WITH details (WorkTitle, DueDate, etc.)
+  const maxWithDetails = Math.min(5, acceptedReports.length);
+  for (let i = 0; i < maxWithDetails; i++) {
+    const damageReport = acceptedReports[i];
+    const status = statusCycle[i % statusCycle.length];
+    const titleIndex = i % workTitles.length;
+    
+    const workNo = `WRK-${String(workNoCounter++).padStart(5, '0')}`;
+    
+    const dueDate = new Date('2025-04-25');
+    dueDate.setDate(dueDate.getDate() + i); // Spread due dates
+
+    const maintenanceWork = await prisma.maintenanceWork.create({
+      data: {
+        MaintenanceWorkID: await generateFormattedID('MW'),
+        WorkNo: workNo,
+        DamageReportID: damageReport.DamageReportID,
+        BusID: damageReport.RentalBusAssignment.BusAssignment.BusID,
+        WorkTitle: workTitles[titleIndex],
+        WorkNotes: workDescriptions[titleIndex],
+        DueDate: dueDate,
+        Status: status,
+        Priority: 'High',
+        EstimatedCost: 5000 + (i * 1000),
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+    maintenanceWorkIDs.push(maintenanceWork.MaintenanceWorkID);
+  }
+
+  console.log(`✅ Maintenance works WITH details seeded successfully (${maxWithDetails} total)`);
+  return maintenanceWorkIDs;
+}
+
+async function seedMaintenanceWorksWithoutDetails() {
+  // Get accepted damage reports that don't have maintenance work yet
+  const acceptedReportsWithoutWork = await prisma.damageReport.findMany({
+    where: { 
+      Status: 'Accepted',
+      MaintenanceWork: null  // Only get reports without maintenance work
+    },
+    include: { 
+      RentalBusAssignment: {
+        include: {
+          BusAssignment: true
+        }
+      }
+    },
+    take: 5,  // Get up to 5 reports
+  });
+
+  if (acceptedReportsWithoutWork.length === 0) {
+    console.log('⚠️  No available damage reports for maintenance works without details.');
+    return [];
+  }
+
+  // Get the last WorkNo to continue the sequence
+  const lastWork = await prisma.maintenanceWork.findFirst({
+    orderBy: { WorkNo: 'desc' },
+    select: { WorkNo: true }
+  });
+
+  let workNoCounter = 1;
+  if (lastWork?.WorkNo) {
+    const lastNumber = parseInt(lastWork.WorkNo.split('-')[1]);
+    workNoCounter = lastNumber + 1;
+  }
+
+  const maintenanceWorkIDs: string[] = [];
+
+  // Create 5 maintenance works WITHOUT details (all null except required fields)
+  for (let i = 0; i < acceptedReportsWithoutWork.length; i++) {
+    const damageReport = acceptedReportsWithoutWork[i];
+    const workNo = `WRK-${String(workNoCounter++).padStart(5, '0')}`;
+
+    const maintenanceWork = await prisma.maintenanceWork.create({
+      data: {
+        MaintenanceWorkID: await generateFormattedID('MW'),
+        WorkNo: workNo,
+        DamageReportID: damageReport.DamageReportID,
+        BusID: damageReport.RentalBusAssignment.BusAssignment.BusID,
+        Status: 'Pending',  // Default status
+        Priority: 'Medium',  // Default priority
+        // All optional fields are omitted (null):
+        // WorkTitle, AssignedTo, ScheduledDate, DueDate, CompletedDate, 
+        // EstimatedCost, ActualCost, WorkNotes
+        CreatedBy: 'OP-2024-00123',
+      },
+    });
+    maintenanceWorkIDs.push(maintenanceWork.MaintenanceWorkID);
+  }
+
+  console.log(`✅ Maintenance works WITHOUT details seeded successfully (${acceptedReportsWithoutWork.length} total)`);
+  return maintenanceWorkIDs;
+}
+
+async function seedTasks(maintenanceWorkIDs: string[]) {
+  const taskTitles = [
+    'Inspect components',
+    'Order replacement parts',
+    'Remove damaged parts',
+    'Install new components',
+    'Test functionality',
+  ];
+
+  const taskDescriptions = [
+    'Thoroughly inspect all related components for damage',
+    'Source and order necessary replacement parts',
+    'Carefully remove damaged or worn components',
+    'Install and secure new replacement components',
+    'Perform comprehensive testing to ensure proper operation',
+  ];
+
+  let taskCount = 0;
+
+  for (const maintenanceWorkID of maintenanceWorkIDs) {
+    const maintenanceWork = await prisma.maintenanceWork.findUnique({
+      where: { MaintenanceWorkID: maintenanceWorkID },
+    });
+
+    if (!maintenanceWork) continue;
+
+    for (let i = 0; i < 5; i++) {
+      let taskStatus: 'Pending' | 'InProgress' | 'Completed';
+      
+      if (maintenanceWork.Status === 'Completed') {
+        taskStatus = 'Completed';
+      } else if (maintenanceWork.Status === 'InProgress') {
+        taskStatus = i < 2 ? 'Completed' : i === 2 ? 'InProgress' : 'Pending';
+      } else {
+        taskStatus = 'Pending';
+      }
+
+      await prisma.task.create({
+        data: {
+          TaskID: await generateFormattedID('TSK'),
+          MaintenanceWorkID: maintenanceWorkID,
+          TaskName: taskTitles[i],
+          TaskDescription: taskDescriptions[i],
+          Status: taskStatus,
+          CreatedBy: 'OP-2024-00123',
+        },
+      });
+      taskCount++;
+    }
+  }
+
+  console.log(`✅ Tasks seeded successfully (${taskCount} total: 5 per maintenance work)`);
 }
 
 async function main() {
@@ -848,6 +1132,14 @@ async function main() {
 
   await seedRentalDrivers(rentalIDs);
   await seedRentalRequests(rentalIDs);
+  
+  // Seed damage reports, maintenance works, and tasks
+  await seedDamageReports();
+  const maintenanceWorkIDsWithDetails = await seedMaintenanceWorks();
+  const maintenanceWorkIDsWithoutDetails = await seedMaintenanceWorksWithoutDetails();
+  
+  // Combine both arrays for task seeding (only create tasks for works with details)
+  await seedTasks(maintenanceWorkIDsWithDetails);
 
   await clearAllCache(); 
 }
