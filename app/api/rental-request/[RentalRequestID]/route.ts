@@ -161,6 +161,16 @@ const putHandler = async (request: NextRequest) => {
             damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
           }
 
+          // Auto-assign status based on damage items
+          // Note: false = damaged/issue found, true = no damage/OK
+          // If ALL items are true (all OK), set status to NA (no damage found)
+          // If ANY item is false (has damage), set status to Pending (needs review)
+          const allItemsOk = damageData.Battery && damageData.Lights && damageData.Oil && 
+                             damageData.Water && damageData.Brake && damageData.Air && 
+                             damageData.Gas && damageData.Engine && damageData.TireCondition;
+          
+          damageData.Status = allItemsOk ? 'NA' : 'Pending';
+
           await tx.damageReport.create({ data: damageData });
 
           return tx.rentalRequest.findUnique({

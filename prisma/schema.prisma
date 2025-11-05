@@ -281,6 +281,7 @@ enum RentalRequestStatus {
 }
 
 enum DamageReportStatus {
+  NA
   Pending
   Accepted
   Rejected
@@ -340,7 +341,7 @@ model DamageReport {
   RentalRequestID        String
   RentalBusAssignmentID  String
 
-  // Vehicle condition checks (true = damaged/issue found)
+  // Vehicle condition checks (true = OK/no damage, false = damaged/issue found)
   Battery                Boolean  @default(false)
   Lights                 Boolean  @default(false)
   Oil                    Boolean  @default(false)
@@ -358,7 +359,7 @@ model DamageReport {
   CheckDate              DateTime @default(now())
 
   // Status of the damage report
-  Status                 DamageReportStatus @default(Pending)
+  Status                 DamageReportStatus @default(NA)
 
   // Relations
   RentalRequest          RentalRequest @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
