@@ -136,9 +136,20 @@ const getHandler = async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const rentalRequestId = searchParams.get('rentalRequestId');
+    const includeNA = searchParams.get('includeNA') === 'true';
 
-    // If rentalRequestId is provided, filter by it
-    const whereClause = rentalRequestId ? { RentalRequestID: rentalRequestId } : {};
+    // Build where clause
+    // By default, exclude NA status (only show reports with actual damage)
+    // Use ?includeNA=true to show all reports including NA
+    const whereClause: any = {};
+    
+    if (rentalRequestId) {
+      whereClause.RentalRequestID = rentalRequestId;
+    }
+    
+    if (!includeNA) {
+      whereClause.Status = { not: 'NA' };
+    }
 
     const damageReports = await prisma.damageReport.findMany({
       where: whereClause,
