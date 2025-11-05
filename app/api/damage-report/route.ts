@@ -88,6 +88,16 @@ const postHandler = async (request: NextRequest) => {
       damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
     }
 
+    // Auto-assign status based on damage items
+    // Note: false = damaged/issue found, true = no damage/OK
+    // If ALL items are true (all OK), set status to NA (no damage found)
+    // If ANY item is false (has damage), set status to Pending (needs review)
+    const allItemsOk = damageData.Battery && damageData.Lights && damageData.Oil && 
+                       damageData.Water && damageData.Brake && damageData.Air && 
+                       damageData.Gas && damageData.Engine && damageData.TireCondition;
+    
+    damageData.Status = allItemsOk ? 'NA' : 'Pending';
+
     // Create the damage report
     const damageReport = await prisma.damageReport.create({
       data: damageData,
@@ -126,9 +136,20 @@ const getHandler = async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const rentalRequestId = searchParams.get('rentalRequestId');
+    const includeNA = searchParams.get('includeNA') === 'true';
 
-    // If rentalRequestId is provided, filter by it
-    const whereClause = rentalRequestId ? { RentalRequestID: rentalRequestId } : {};
+    // Build where clause
+    // By default, exclude NA status (only show reports with actual damage)
+    // Use ?includeNA=true to show all reports including NA
+    const whereClause: any = {};
+    
+    if (rentalRequestId) {
+      whereClause.RentalRequestID = rentalRequestId;
+    }
+    
+    if (!includeNA) {
+      whereClause.Status = { not: 'NA' };
+    }
 
     const damageReports = await prisma.damageReport.findMany({
       where: whereClause,

@@ -281,6 +281,7 @@ enum RentalRequestStatus {
 }
 
 enum DamageReportStatus {
+  NA
   Pending
   Accepted
   Rejected
@@ -340,7 +341,7 @@ model DamageReport {
   RentalRequestID        String
   RentalBusAssignmentID  String
 
-  // Vehicle condition checks (true = damaged/issue found)
+  // Vehicle condition checks (true = OK/no damage, false = damaged/issue found)
   Battery                Boolean  @default(false)
   Lights                 Boolean  @default(false)
   Oil                    Boolean  @default(false)
@@ -358,7 +359,7 @@ model DamageReport {
   CheckDate              DateTime @default(now())
 
   // Status of the damage report
-  Status                 DamageReportStatus @default(Pending)
+  Status                 DamageReportStatus @default(NA)
 
   // Relations
   RentalRequest          RentalRequest @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
@@ -373,6 +374,7 @@ model DamageReport {
 
 model MaintenanceWork {
   MaintenanceWorkID      String   @id
+  WorkNo                 String?  @unique  // User-friendly work number: WRK-00001
   DamageReportID         String   @unique
   BusID                  String
 
@@ -396,8 +398,50 @@ model MaintenanceWork {
   // Relation to DamageReport (one-to-one)
   DamageReport           DamageReport @relation(fields: [DamageReportID], references: [DamageReportID], onDelete: Cascade)
 
+  // Relation to Tasks (one-to-many)
+  Tasks                  Task[]
+
   CreatedAt              DateTime @default(now())
   UpdatedAt              DateTime @updatedAt
   CreatedBy              String?
   UpdatedBy              String?
 }
+
+model Task {
+  TaskID                 String   @id @default(cuid())
+  MaintenanceWorkID      String
+  
+  TaskNumber             String?  // Auto-generated: TSK-001, TSK-002, etc.
+  TaskName               String
+  TaskType               String?  // General, Repair, Inspection, etc.
+  TaskDescription        String?
+  
+  AssignedTo             String?  // Specific mechanic assigned to this task
+  Status                 TaskStatus @default(Pending)
+  Priority               String?  // Can inherit from parent or be set independently
+  
+  StartDate              DateTime?
+  CompletedDate          DateTime?
+  EstimatedHours         Float?
+  ActualHours            Float?
+  
+  Notes                  String?
+  
+  // Relation to MaintenanceWork (many-to-one)
+  MaintenanceWork        MaintenanceWork @relation(fields: [MaintenanceWorkID], references: [MaintenanceWorkID], onDelete: Cascade)
+
+  CreatedAt              DateTime @default(now())
+  UpdatedAt              DateTime @updatedAt
+  CreatedBy              String?
+  UpdatedBy              String?
+
+  @@index([MaintenanceWorkID])
+  @@index([Status])
+}
+
+enum TaskStatus {
+  Pending
+  InProgress
+  Completed
+}
+
