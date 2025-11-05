@@ -374,6 +374,7 @@ model DamageReport {
 
 model MaintenanceWork {
   MaintenanceWorkID      String   @id
+  WorkNo                 String?  @unique  // User-friendly work number: WRK-00001
   DamageReportID         String   @unique
   BusID                  String
 

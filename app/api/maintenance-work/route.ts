@@ -5,6 +5,39 @@ import { withCors } from '@/lib/withcors';
 import { generateFormattedID } from '@/lib/idGenerator';
 
 /**
+ * Helper function to generate the next WorkNo
+ * Format: WRK-00001, WRK-00002, etc.
+ */
+async function generateNextWorkNo(): Promise<string> {
+  // Get the latest WorkNo
+  const latestWork = await prisma.maintenanceWork.findFirst({
+    where: {
+      WorkNo: {
+        not: null
+      }
+    },
+    orderBy: {
+      WorkNo: 'desc'
+    },
+    select: {
+      WorkNo: true
+    }
+  });
+
+  if (!latestWork || !latestWork.WorkNo) {
+    // First work number
+    return 'WRK-00001';
+  }
+
+  // Extract number from WRK-00001
+  const currentNumber = parseInt(latestWork.WorkNo.split('-')[1]);
+  const nextNumber = currentNumber + 1;
+
+  // Format as WRK-00001
+  return `WRK-${String(nextNumber).padStart(5, '0')}`;
+}
+
+/**
  * POST /api/maintenance-work
  * Creates a new maintenance work from an accepted damage report
  */
@@ -86,10 +119,14 @@ const postHandler = async (request: NextRequest) => {
     // Generate ID for the maintenance work
     const MaintenanceWorkID = await generateFormattedID('MW');
 
+    // Generate WorkNo for the maintenance work
+    const WorkNo = await generateNextWorkNo();
+
     // Create the maintenance work
     const maintenanceWork = await prisma.maintenanceWork.create({
       data: {
         MaintenanceWorkID,
+        WorkNo,
         DamageReportID: damageReportId,
         BusID: busId,
         Priority: priority,
