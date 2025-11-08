@@ -80,6 +80,11 @@ const getHandler = async (request: NextRequest) => {
             },
           },
         },
+        DamageReports: {
+          orderBy: {
+            CheckDate: 'desc' as const,
+          },
+        },
       };
     } else {
       includeClause = {
