@@ -53,9 +53,9 @@ const getHandler = async (request: NextRequest) => {
 
     // Fetch all bus assignments with their RegularBusAssignment and only the LatestBusTrip
     const busAssignments = await prisma.busAssignment.findMany({
-        where: {
-      ...whereClause,
-      AssignmentType: "Regular", // <-- Only get Regular assignments
+      where: {
+        ...whereClause,
+        AssignmentType: "Regular",
       },
       orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
       select: {
@@ -78,12 +78,14 @@ const getHandler = async (request: NextRequest) => {
         UpdatedAt: true,
         CreatedBy: true,
         UpdatedBy: true,
+
         Route: {
           select: {
             RouteID: true,
             RouteName: true,
           }
         },
+
         RegularBusAssignment: {
           select: {
             DriverID: true,
@@ -97,8 +99,8 @@ const getHandler = async (request: NextRequest) => {
                 Sales: true,
                 PettyCash: true,
                 Remarks: true,
-                TripExpense: true, // <-- updated
-                Payment_Method: true, // <-- new
+                TripExpense: true,
+                Payment_Method: true,
                 TicketBusTrips: {
                   select: {
                     TicketBusTripID: true,
@@ -118,18 +120,10 @@ const getHandler = async (request: NextRequest) => {
             QuotaPolicies: {
               select: {
                 QuotaPolicyID: true,
-                StartDate: true,   // <-- Add this
-                EndDate: true,     // <-- And this
-                Fixed: {
-                  select: {
-                    Quota: true,
-                  },
-                },
-                Percentage: {
-                  select: {
-                    Percentage: true,
-                  },
-                },
+                StartDate: true,
+                EndDate: true,
+                Fixed: { select: { Quota: true } },
+                Percentage: { select: { Percentage: true } },
               },
             },
             CreatedAt: true,
@@ -138,38 +132,67 @@ const getHandler = async (request: NextRequest) => {
             UpdatedBy: true,
           },
         },
+
+        // ✅ ADD THIS BLOCK
+        DamageReports: {
+          orderBy: { CheckDate: "desc" },
+          take: 1,
+          select: {
+            DamageReportID: true,
+            Battery: true,
+            Lights: true,
+            Oil: true,
+            Water: true,
+            Brake: true,
+            Air: true,
+            Gas: true,
+            Engine: true,
+            TireCondition: true,
+            Note: true,
+            CheckDate: true,
+          },
+        },
       },
     });
 
-    // Remove LatestBusTrip if LatestBusTripID is null and apply UpdatedAt/UpdatedBy logic
-      const result = busAssignments.map((assignment) => {
+    const result = busAssignments.map((assignment) => {
       let regular = assignment.RegularBusAssignment;
+
       if (regular && regular.LatestBusTripID === null) {
-        // Remove LatestBusTrip from the response
         const { LatestBusTrip, ...rest } = regular;
         regular = { ...rest, LatestBusTrip: null };
       }
-      // Apply UpdatedAt/UpdatedBy logic to assignment
-      let processedAssignment: any = assignment;
+
+      let processedAssignment: any = { ...assignment }; // ✅ Safe copy
       if (
         assignment.CreatedAt &&
         assignment.UpdatedAt &&
         new Date(assignment.CreatedAt).getTime() === new Date(assignment.UpdatedAt).getTime()
       ) {
-        processedAssignment = { ...assignment, UpdatedAt: null, UpdatedBy: null } as any;
+        processedAssignment = { ...assignment, UpdatedAt: null, UpdatedBy: null };
       }
-      // Apply UpdatedAt/UpdatedBy logic to RegularBusAssignment
+
       if (
         regular &&
         regular.CreatedAt &&
         regular.UpdatedAt &&
         new Date(regular.CreatedAt).getTime() === new Date(regular.UpdatedAt).getTime()
       ) {
-        regular = { ...regular, UpdatedAt: null, UpdatedBy: null } as any;
+        regular = { 
+          ...regular, 
+          UpdatedAt: regular.UpdatedAt ?? null, 
+          UpdatedBy: regular.UpdatedBy ?? null 
+        };
       }
+
+      // ✅ Convert DamageReports[0] -> LatestDamageReport
+      const latestDamageReport = assignment.DamageReports?.[0] ?? null;
+      delete processedAssignment.DamageReports; // ✅ Safe delete
+
       return {
         ...processedAssignment,
         RegularBusAssignment: regular,
+        LatestDamageReport: latestDamageReport,
       };
     });
 

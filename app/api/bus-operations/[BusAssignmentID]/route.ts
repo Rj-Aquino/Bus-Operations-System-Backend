@@ -440,6 +440,27 @@ const putHandler = async (request: NextRequest) => {
     await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
 
     if (body.ResetCompleted) {
+
+      await prisma.damageReport.create({
+        data: {
+          DamageReportID: await generateFormattedID('DR'),
+          BusAssignmentID,
+          Battery: body.D_Battery ?? false,
+          Lights: body.D_Lights ?? false,
+          Oil: body.D_Oil ?? false,
+          Water: body.D_Water ?? false,
+          Brake: body.D_Brake ?? false,
+          Air: body.D_Air ?? false,
+          Gas: body.D_Gas ?? false,
+          Engine: body.D_Engine ?? false,
+          TireCondition: body.D_TireCondition ?? false,
+          Note: body.D_Note ?? null,
+          Status: 'Pending',
+          CreatedBy: user?.employeeId || null,
+          UpdatedBy: user?.employeeId || null,
+        },
+      });
+
       const resetRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
       return NextResponse.json(applyAuditLogic(resetRecord), { status: 200 });
     }

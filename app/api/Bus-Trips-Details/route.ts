@@ -2,22 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
 import { withCors } from '@/lib/withcors';
 import { authenticateRequest } from '@/lib/auth';
-
-async function fetchExternal(url: string, token: string) {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
+import { fetchNewDrivers, fetchNewConductors, fetchNewBuses } from "@/lib/fetchExternal";
 
 const getAssignmentSummary = async (request: NextRequest) => {
   const { error, token, status } = await authenticateRequest(request);
-  // if (error) {
-  //   return NextResponse.json({ error }, { status });
-  // }
+  // If you want authentication back:
+  // if (error) return NextResponse.json({ error }, { status });
 
   const { searchParams } = new URL(request.url);
   const filterBy = searchParams.get("RequestType")?.toLowerCase(); // "revenue", "expense", or null
@@ -34,21 +24,18 @@ const getAssignmentSummary = async (request: NextRequest) => {
   } else if (filterBy === "expense") {
     tripConditions.IsExpenseRecorded = false;
   } else {
-    // Default: filter those that are not fully recorded
     tripConditions.OR = [
       { IsRevenueRecorded: false },
       { IsExpenseRecorded: false },
     ];
   }
 
-  // Fetch assignments
+  // Fetch assignments from Prisma
   const assignments = await prisma.busAssignment.findMany({
     where: {
       IsDeleted: false,
       RegularBusAssignment: {
-        BusTrips: {
-          some: tripConditions,
-        },
+        BusTrips: { some: tripConditions },
       },
     },
     select: {
@@ -84,54 +71,50 @@ const getAssignmentSummary = async (request: NextRequest) => {
     },
   });
 
-  // Gather unique IDs
-  const driverIDs = [...new Set(assignments.map(a => a.RegularBusAssignment?.DriverID).filter(Boolean))];
-  const conductorIDs = [...new Set(assignments.map(a => a.RegularBusAssignment?.ConductorID).filter(Boolean))];
-  const busIDs = [...new Set(assignments.map(a => a.BusID).filter(Boolean))];
-
-  // Fetch external data
+  // Fetch external or fallback data
   const [drivers, conductors, buses] = await Promise.all([
-    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_DRIVER_URL}`, token ?? ''),
-    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_CONDUCTOR_URL}`, token ?? ''),
-    fetchExternal(`${process.env.BASE_URL}${process.env.EXTERNAL_BUS_URL}`, token ?? ''),
+    fetchNewDrivers(),
+    fetchNewConductors(),
+    fetchNewBuses(),
   ]);
 
+  // Normalize into arrays
   const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
   const conductorsArr = Array.isArray(conductors) ? conductors : conductors?.data ?? [];
   const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
 
-  const driverMap = Object.fromEntries(driversArr.map((d: any) => [d.driver_id, d]));
-  const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.conductor_id, c]));
-  const busMap = Object.fromEntries(busesArr.map((b: any) => [b.busId, b]));
+  // Build quick lookup maps
+  const driverMap = Object.fromEntries(driversArr.map((d: any) => [d.employeeNumber ?? d.driver_id, d]));
+  const conductorMap = Object.fromEntries(conductorsArr.map((c: any) => [c.employeeNumber ?? c.conductor_id, c]));
+  const busMap = Object.fromEntries(busesArr.map((b: any) => [b.bus_id ?? b.busId, b]));
 
+  // Flatten and format results
   const result = assignments.flatMap(a => {
     const busTrips = a.RegularBusAssignment?.BusTrips || [];
     const quotaPolicies = a.RegularBusAssignment?.QuotaPolicies || [];
-    const driver = driverMap[a.RegularBusAssignment?.DriverID ?? ''];
-    const conductor = conductorMap[a.RegularBusAssignment?.ConductorID ?? ''];
-    const bus = busMap[a.BusID ?? ''];
+
+    const driver = driverMap[a.RegularBusAssignment?.DriverID ?? ""];
+    const conductor = conductorMap[a.RegularBusAssignment?.ConductorID ?? ""];
+    const bus = busMap[a.BusID ?? ""];
 
     return busTrips.map(trip => {
-      let quotaPolicy = null;
-      if (trip?.DispatchedAt) {
-        quotaPolicy = quotaPolicies.find(qp =>
-          qp.StartDate && qp.EndDate &&
-          trip.DispatchedAt != null &&
-          trip.DispatchedAt >= qp.StartDate &&
-          trip.DispatchedAt <= qp.EndDate
-        );
-      }
+      // Match quota policy
+      const quotaPolicy = quotaPolicies.find(qp =>
+        qp.StartDate && qp.EndDate && trip.DispatchedAt &&
+        trip.DispatchedAt >= qp.StartDate && trip.DispatchedAt <= qp.EndDate
+      );
 
+      // Determine assignment type/value
       let assignment_type = null;
       let assignment_value = null;
       if (quotaPolicy?.Fixed) {
-        assignment_type = 'Boundary';
+        assignment_type = "BOUNDARY";
         assignment_value = quotaPolicy.Fixed.Quota;
       } else if (quotaPolicy?.Percentage) {
-        assignment_type = 'Percentage';
+        assignment_type = "PERCENTAGE";
         assignment_value = quotaPolicy.Percentage.Percentage;
       } else {
-        assignment_type = 'Bus Rental';
+        assignment_type = "BUS RENTAL";
         assignment_value = null;
       }
 
@@ -139,19 +122,41 @@ const getAssignmentSummary = async (request: NextRequest) => {
         assignment_id: a.BusAssignmentID,
         bus_trip_id: trip.BusTripID,
         bus_route: a.Route?.RouteName || null,
-        is_revenue_recorded: trip?.IsRevenueRecorded ?? false,
-        is_expense_recorded: trip?.IsExpenseRecorded ?? false,
-        date_assigned: trip?.DispatchedAt?.toISOString() ?? null,
-        trip_fuel_expense: trip?.TripExpense ?? null,
-        trip_revenue: trip?.Sales ?? null,
+        is_revenue_recorded: trip.IsRevenueRecorded ?? false,
+        is_expense_recorded: trip.IsExpenseRecorded ?? false,
+        date_assigned: trip.DispatchedAt ? trip.DispatchedAt.toISOString() : null,
+        trip_fuel_expense: trip.TripExpense ?? null,
+        trip_revenue: trip.Sales ?? null,
         assignment_type,
         assignment_value,
-        payment_method: trip?.Payment_Method ?? null,
-        driver_name: driver?.name ?? null,
-        conductor_name: conductor?.name ?? null,
-        bus_plate_number: bus?.license_plate ?? null,
-        bus_type: bus?.type ?? null,
-        body_number: bus?.body_number ?? null,
+        payment_method: trip.Payment_Method ?? null,
+
+        // driver
+        employee_driver: driver
+          ? {
+              employee_id: driver.employeeNumber ?? driver.driver_id,
+              employee_firstName: driver.firstName ?? driver.name?.split(" ")[0] ?? null,
+              employee_middleName: driver.middleName ?? null,
+              employee_lastName: driver.lastName ?? driver.name?.split(" ")[1] ?? null,
+              employee_suffix: driver.suffix ?? null,
+            }
+          : null,
+
+        // conductor
+        employee_conductor: conductor
+          ? {
+              employee_id: conductor.employeeNumber ?? conductor.conductor_id,
+              employee_firstName: conductor.firstName ?? conductor.name?.split(" ")[0] ?? null,
+              employee_middleName: conductor.middleName ?? null,
+              employee_lastName: conductor.lastName ?? conductor.name?.split(" ")[1] ?? null,
+              employee_suffix: conductor.suffix ?? null,
+            }
+          : null,
+
+        // bus
+        bus_plate_number: bus.plate_number ?? bus.license_plate ?? null,
+        bus_type: bus.bus_type ?? bus.type ?? null,
+        body_number: bus.body_number ?? null,
       };
     });
   });
