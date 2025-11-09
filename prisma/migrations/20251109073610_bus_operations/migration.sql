@@ -10,6 +10,24 @@ CREATE TYPE "PaymentMethod" AS ENUM ('Reimbursement', 'Company_Cash');
 -- CreateEnum
 CREATE TYPE "RentalRequestStatus" AS ENUM ('Pending', 'Approved', 'Rejected', 'Completed');
 
+-- CreateEnum
+CREATE TYPE "DamageReportStatus" AS ENUM ('NA', 'Pending', 'Accepted', 'Rejected');
+
+-- CreateEnum
+CREATE TYPE "MaintenanceStatus" AS ENUM ('Pending', 'InProgress', 'Completed', 'Cancelled');
+
+-- CreateEnum
+CREATE TYPE "MaintenancePriority" AS ENUM ('Low', 'Medium', 'High', 'Critical');
+
+-- CreateEnum
+CREATE TYPE "TaskStatus" AS ENUM ('Pending', 'InProgress', 'Completed');
+
+-- CreateEnum
+CREATE TYPE "TaskType" AS ENUM ('Inspection', 'Repair', 'Replacement', 'Cleaning', 'Testing', 'Documentation', 'Other');
+
+-- CreateEnum
+CREATE TYPE "ToolSourceType" AS ENUM ('FromInventory', 'PurchasedExternally');
+
 -- CreateTable
 CREATE TABLE "Quota_Policy" (
     "QuotaPolicyID" TEXT NOT NULL,
@@ -96,7 +114,7 @@ CREATE TABLE "RouteStop" (
 CREATE TABLE "BusAssignment" (
     "BusAssignmentID" TEXT NOT NULL,
     "BusID" TEXT NOT NULL,
-    "RouteID" TEXT NOT NULL,
+    "RouteID" TEXT,
     "AssignmentType" "AssignmentType" NOT NULL DEFAULT 'Regular',
     "Battery" BOOLEAN NOT NULL DEFAULT false,
     "Lights" BOOLEAN NOT NULL DEFAULT false,
@@ -185,16 +203,6 @@ CREATE TABLE "TicketBusTripAssignment" (
 -- CreateTable
 CREATE TABLE "RentalBusAssignment" (
     "RentalBusAssignmentID" TEXT NOT NULL,
-    "Battery" BOOLEAN NOT NULL DEFAULT false,
-    "Lights" BOOLEAN NOT NULL DEFAULT false,
-    "Oil" BOOLEAN NOT NULL DEFAULT false,
-    "Water" BOOLEAN NOT NULL DEFAULT false,
-    "Break" BOOLEAN NOT NULL DEFAULT false,
-    "Air" BOOLEAN NOT NULL DEFAULT false,
-    "Gas" BOOLEAN NOT NULL DEFAULT false,
-    "Engine" BOOLEAN NOT NULL DEFAULT false,
-    "TireCondition" BOOLEAN NOT NULL DEFAULT false,
-    "Note" TEXT,
     "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMP(3) NOT NULL,
     "CreatedBy" TEXT,
@@ -220,10 +228,10 @@ CREATE TABLE "RentalDriver" (
 CREATE TABLE "RentalRequest" (
     "RentalRequestID" TEXT NOT NULL,
     "RentalBusAssignmentID" TEXT,
+    "RouteName" TEXT NOT NULL,
     "PickupLocation" TEXT NOT NULL,
     "DropoffLocation" TEXT NOT NULL,
     "DistanceKM" DOUBLE PRECISION NOT NULL,
-    "RentalPrice" DOUBLE PRECISION NOT NULL,
     "NumberOfPassengers" INTEGER NOT NULL,
     "RentalDate" TIMESTAMP(3) NOT NULL,
     "Duration" INTEGER NOT NULL,
@@ -231,6 +239,13 @@ CREATE TABLE "RentalRequest" (
     "Status" "RentalRequestStatus" NOT NULL DEFAULT 'Pending',
     "CustomerName" TEXT NOT NULL,
     "CustomerContact" TEXT NOT NULL,
+    "TotalRentalAmount" DOUBLE PRECISION NOT NULL,
+    "DownPaymentAmount" DOUBLE PRECISION,
+    "BalanceAmount" DOUBLE PRECISION,
+    "DownPaymentDate" TIMESTAMP(3),
+    "FullPaymentDate" TIMESTAMP(3),
+    "CancelledAtDate" TIMESTAMP(3),
+    "CancelledReason" TEXT,
     "IsDeleted" BOOLEAN NOT NULL DEFAULT false,
     "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMP(3) NOT NULL,
@@ -238,6 +253,92 @@ CREATE TABLE "RentalRequest" (
     "UpdatedBy" TEXT,
 
     CONSTRAINT "RentalRequest_pkey" PRIMARY KEY ("RentalRequestID")
+);
+
+-- CreateTable
+CREATE TABLE "DamageReport" (
+    "DamageReportID" TEXT NOT NULL,
+    "BusAssignmentID" TEXT NOT NULL,
+    "Battery" BOOLEAN NOT NULL DEFAULT false,
+    "Lights" BOOLEAN NOT NULL DEFAULT false,
+    "Oil" BOOLEAN NOT NULL DEFAULT false,
+    "Water" BOOLEAN NOT NULL DEFAULT false,
+    "Brake" BOOLEAN NOT NULL DEFAULT false,
+    "Air" BOOLEAN NOT NULL DEFAULT false,
+    "Gas" BOOLEAN NOT NULL DEFAULT false,
+    "Engine" BOOLEAN NOT NULL DEFAULT false,
+    "TireCondition" BOOLEAN NOT NULL DEFAULT false,
+    "Note" TEXT,
+    "CheckDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "Status" "DamageReportStatus" NOT NULL DEFAULT 'NA',
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "DamageReport_pkey" PRIMARY KEY ("DamageReportID")
+);
+
+-- CreateTable
+CREATE TABLE "MaintenanceWork" (
+    "MaintenanceWorkID" TEXT NOT NULL,
+    "DamageReportID" TEXT NOT NULL,
+    "Status" "MaintenanceStatus" NOT NULL DEFAULT 'Pending',
+    "Priority" "MaintenancePriority" NOT NULL DEFAULT 'Medium',
+    "WorkTitle" TEXT,
+    "ScheduledDate" TIMESTAMP(3),
+    "DueDate" TIMESTAMP(3),
+    "CompletedDate" TIMESTAMP(3),
+    "EstimatedCost" DOUBLE PRECISION,
+    "ActualCost" DOUBLE PRECISION,
+    "WorkNotes" TEXT,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "MaintenanceWork_pkey" PRIMARY KEY ("MaintenanceWorkID")
+);
+
+-- CreateTable
+CREATE TABLE "Task" (
+    "TaskID" TEXT NOT NULL,
+    "MaintenanceWorkID" TEXT NOT NULL,
+    "TaskName" TEXT NOT NULL,
+    "TaskType" "TaskType" NOT NULL,
+    "TaskDescription" TEXT,
+    "AssignedTo" TEXT,
+    "Status" "TaskStatus" NOT NULL DEFAULT 'Pending',
+    "StartDate" TIMESTAMP(3),
+    "CompletedDate" TIMESTAMP(3),
+    "EstimatedHours" DOUBLE PRECISION,
+    "ActualHours" DOUBLE PRECISION,
+    "Notes" TEXT,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "Task_pkey" PRIMARY KEY ("TaskID")
+);
+
+-- CreateTable
+CREATE TABLE "TaskTool" (
+    "TaskToolID" TEXT NOT NULL,
+    "TaskID" TEXT NOT NULL,
+    "ToolID" TEXT,
+    "QuantityUsed" DOUBLE PRECISION NOT NULL,
+    "Unit" TEXT NOT NULL,
+    "SourceType" "ToolSourceType" NOT NULL DEFAULT 'FromInventory',
+    "CostPerUnit" DOUBLE PRECISION,
+    "TotalCost" DOUBLE PRECISION,
+    "Notes" TEXT,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMP(3) NOT NULL,
+    "CreatedBy" TEXT,
+    "UpdatedBy" TEXT,
+
+    CONSTRAINT "TaskTool_pkey" PRIMARY KEY ("TaskToolID")
 );
 
 -- CreateIndex
@@ -257,6 +358,21 @@ CREATE INDEX "RegularBusAssignment_ConductorID_idx" ON "RegularBusAssignment"("C
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RentalDriver_RentalBusAssignmentID_DriverID_key" ON "RentalDriver"("RentalBusAssignmentID", "DriverID");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MaintenanceWork_DamageReportID_key" ON "MaintenanceWork"("DamageReportID");
+
+-- CreateIndex
+CREATE INDEX "Task_MaintenanceWorkID_idx" ON "Task"("MaintenanceWorkID");
+
+-- CreateIndex
+CREATE INDEX "Task_Status_idx" ON "Task"("Status");
+
+-- CreateIndex
+CREATE INDEX "TaskTool_TaskID_idx" ON "TaskTool"("TaskID");
+
+-- CreateIndex
+CREATE INDEX "TaskTool_ToolID_idx" ON "TaskTool"("ToolID");
 
 -- AddForeignKey
 ALTER TABLE "Quota_Policy" ADD CONSTRAINT "Quota_Policy_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "RegularBusAssignment"("RegularBusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -280,7 +396,7 @@ ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_RouteID_fkey" FOREIGN KEY ("Ro
 ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_StopID_fkey" FOREIGN KEY ("StopID") REFERENCES "Stop"("StopID") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN KEY ("RouteID") REFERENCES "Route"("RouteID") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BusAssignment" ADD CONSTRAINT "BusAssignment_RouteID_fkey" FOREIGN KEY ("RouteID") REFERENCES "Route"("RouteID") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RegularBusAssignment" ADD CONSTRAINT "RegularBusAssignment_RegularBusAssignmentID_fkey" FOREIGN KEY ("RegularBusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -305,3 +421,15 @@ ALTER TABLE "RentalDriver" ADD CONSTRAINT "RentalDriver_RentalBusAssignmentID_fk
 
 -- AddForeignKey
 ALTER TABLE "RentalRequest" ADD CONSTRAINT "RentalRequest_RentalBusAssignmentID_fkey" FOREIGN KEY ("RentalBusAssignmentID") REFERENCES "RentalBusAssignment"("RentalBusAssignmentID") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DamageReport" ADD CONSTRAINT "DamageReport_BusAssignmentID_fkey" FOREIGN KEY ("BusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MaintenanceWork" ADD CONSTRAINT "MaintenanceWork_DamageReportID_fkey" FOREIGN KEY ("DamageReportID") REFERENCES "DamageReport"("DamageReportID") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_MaintenanceWorkID_fkey" FOREIGN KEY ("MaintenanceWorkID") REFERENCES "MaintenanceWork"("MaintenanceWorkID") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskTool" ADD CONSTRAINT "TaskTool_TaskID_fkey" FOREIGN KEY ("TaskID") REFERENCES "Task"("TaskID") ON DELETE CASCADE ON UPDATE CASCADE;
