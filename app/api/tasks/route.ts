@@ -334,20 +334,7 @@ export const GET = withCors(getHandler);
 export const POST = withCors(postHandler);
 export const PATCH = withCors(patchHandler);
 export const DELETE = withCors(deleteHandler);
+export const OPTIONS = withCors(async (request: NextRequest) => {
+  return new NextResponse(null, { status: 204 });
+});
 
-// Handle OPTIONS preflight requests
-export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  
-  const headers = new Headers({
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  });
-
-  if (origin && origin === 'http://localhost:3000') {
-    headers.set('Access-Control-Allow-Origin', origin);
-  }
-
-  return new NextResponse(null, { status: 204, headers });
-}
