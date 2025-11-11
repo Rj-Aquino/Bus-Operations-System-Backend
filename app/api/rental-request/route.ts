@@ -15,100 +15,85 @@ const getHandler = async (request: NextRequest) => {
 
   try {
     const url = new URL(request.url);
-    const statusParam = url.searchParams.get('status');
+    const statusParam = url.searchParams.get("status");
 
     const whereClause: { Status?: any; IsDeleted?: boolean } = { IsDeleted: false };
 
     let normalizedStatus: string | undefined;
     if (statusParam) {
-      const validStatuses = ['Pending', 'Approved', 'Rejected', 'Completed'];
-      normalizedStatus = validStatuses.find(s => s.toLowerCase() === statusParam.toLowerCase());
-      if (!normalizedStatus) return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
+      const validStatuses = ["Pending", "Approved", "Rejected", "Completed"];
+      normalizedStatus = validStatuses.find(
+        (s) => s.toLowerCase() === statusParam.toLowerCase()
+      );
+      if (!normalizedStatus)
+        return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
       whereClause.Status = normalizedStatus;
     }
 
-    // Build include clause per requirements:
-    // - Always include RentalBusAssignment so requests are returned for all statuses
-    // - Approved: include only minimal fields from RentalBusAssignment (no battery/light/etc) but include full BusAssignment and drivers
-    // - Completed: include full RentalBusAssignment (all its scalar fields) and minimal nested BusAssignment & RentalDrivers
-    // - Pending/Rejected: include minimal RentalBusAssignment so enrichment is possible
-    let includeClause: any;
+      let includeClause: any;
 
-    if (normalizedStatus === 'Approved') {
-      includeClause = {
-        RentalBusAssignment: {
-          select: {
-            RentalBusAssignmentID: true,
-            Battery: true,
-            Lights: true,
-            Oil: true,
-            Water: true,
-            Break: true,
-            Air: true,
-            Gas: true,
-            Engine: true,
-            TireCondition: true,
-            Note: true,
-            BusAssignment: true, // include all BusAssignment columns
-            RentalDrivers: {
-              select: {
-                RentalDriverID: true,
-                DriverID: true,
-                CreatedAt: true,
+      if (normalizedStatus === "Approved") {
+        includeClause = {
+          RentalBusAssignment: {
+            include: {
+              BusAssignment: {
+                include: {
+                  DamageReports: {
+                    orderBy: { CheckDate: "desc" },
+                    take: 1,
+                  },
+                },
+              },
+              RentalDrivers: {
+                select: {
+                  RentalDriverID: true,
+                  DriverID: true,
+                  CreatedAt: true,
+                },
               },
             },
           },
-        },
-      };
-    } else if (normalizedStatus === 'Completed') {
-      includeClause = {
-        RentalBusAssignment: {
-          // no `select` => return all scalar fields of RentalBusAssignment
-          include: {
-            BusAssignment: {
-              select: {
-                BusAssignmentID: true,
-                BusID: true,
-                Status: true,
+        };
+      } else if (normalizedStatus === "Completed") {
+        includeClause = {
+          RentalBusAssignment: {
+            include: {
+              BusAssignment: {
+                include: {
+                  DamageReports: {
+                    orderBy: { CheckDate: "desc" },
+                    take: 1,
+                  },
+                },
               },
-            },
-            RentalDrivers: {
-              select: {
-                RentalDriverID: true,
-                DriverID: true,
-              },
-            },
-          },
-        },
-        DamageReports: {
-          orderBy: {
-            CheckDate: 'desc' as const,
-          },
-        },
-      };
-    } else {
-      includeClause = {
-        RentalBusAssignment: {
-          select: {
-            RentalBusAssignmentID: true,
-            BusAssignment: {
-              select: {
-                BusAssignmentID: true,
-                BusID: true,
+              RentalDrivers: {
+                select: {
+                  RentalDriverID: true,
+                  DriverID: true,
+                },
               },
             },
           },
-        },
-      };
-    }
+        };
+      } else {
+        // Pending / Rejected
+        includeClause = {
+          RentalBusAssignment: {
+            include: {
+              BusAssignment: true, // just get BusAssignment link (scalars + relations)
+            },
+          },
+        };
+      }
 
+    // ✅ Fetch rental requests
     const rentalRequests = await prisma.rentalRequest.findMany({
       where: whereClause,
-      orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
+      orderBy: [{ UpdatedAt: "desc" }, { CreatedAt: "desc" }],
       include: includeClause,
     });
 
-    // Fetch buses (prefer new source, fallback to stable)
+    // ✅ Fetch buses (try new → fallback)
     let buses: any[] = [];
     try {
       const nb = await fetchNewBuses();
@@ -121,11 +106,14 @@ const getHandler = async (request: NextRequest) => {
       buses = [];
     }
 
-    const busMap = new Map<string, any>((buses ?? []).map((b: any) => [String(b.bus_id), b]));
+    const busMap = new Map<string, any>(
+      (buses ?? []).map((b: any) => [String(b.bus_id), b])
+    );
 
+    // ✅ Enrich with bus info
     const enrichedRequests = (rentalRequests ?? []).map((rr: any) => {
-      const rentalBusAssignment = rr.RentalBusAssignment as any | undefined;
-      const busAssignment = rentalBusAssignment?.BusAssignment as any | undefined;
+      const rentalBusAssignment = rr.RentalBusAssignment;
+      const busAssignment = rentalBusAssignment?.BusAssignment;
       const busID = busAssignment?.BusID ? String(busAssignment.BusID) : undefined;
       const busInfo = busID ? busMap.get(busID) : undefined;
 
@@ -137,17 +125,29 @@ const getHandler = async (request: NextRequest) => {
       };
     });
 
+    // ✅ Normalize timestamps
     const result = enrichedRequests.map((rr: any) => {
-      const created = rr.CreatedAt instanceof Date ? rr.CreatedAt : rr.CreatedAt ? new Date(rr.CreatedAt) : null;
-      const updated = rr.UpdatedAt instanceof Date ? rr.UpdatedAt : rr.UpdatedAt ? new Date(rr.UpdatedAt) : null;
-      if (created && updated && created.getTime() === updated.getTime()) return { ...rr, UpdatedAt: null, UpdatedBy: null };
+      const created =
+        rr.CreatedAt instanceof Date
+          ? rr.CreatedAt
+          : rr.CreatedAt
+          ? new Date(rr.CreatedAt)
+          : null;
+      const updated =
+        rr.UpdatedAt instanceof Date
+          ? rr.UpdatedAt
+          : rr.UpdatedAt
+          ? new Date(rr.UpdatedAt)
+          : null;
+      if (created && updated && created.getTime() === updated.getTime())
+        return { ...rr, UpdatedAt: null, UpdatedBy: null };
       return rr;
     });
 
     return NextResponse.json(result);
   } catch (err) {
-    console.error('Error fetching rental requests:', err);
-    return NextResponse.json({ error: 'Failed to fetch rental requests' }, { status: 500 });
+    console.error("Error fetching rental requests:", err);
+    return NextResponse.json({ error: "Failed to fetch rental requests" }, { status: 500 });
   }
 };
 
@@ -162,89 +162,88 @@ const postHandler = async (request: NextRequest) => {
       PickupLocation,
       DropoffLocation,
       DistanceKM,
-      RentalPrice,
+      TotalRentalAmount,
       NumberOfPassengers,
       RentalDate,
       Duration,
       CustomerName,
       CustomerContact,
       BusID,
-      RouteID, // optional now; we'll look up a default if not provided
-      rentalAssignment,
+      RouteName, // ✅ now required instead of RouteID
       Status,
       SpecialRequirements,
     } = body;
 
+    // ✅ validate required fields based on schema
     if (
       !PickupLocation ||
       !DropoffLocation ||
       DistanceKM == null ||
-      RentalPrice == null ||
+      TotalRentalAmount == null ||
       NumberOfPassengers == null ||
       !RentalDate ||
       Duration == null ||
       !CustomerName ||
       !CustomerContact ||
-      !BusID
+      !BusID ||
+      !RouteName
     ) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    let normalizedStatus = 'Pending' as RentalRequestStatus;
+    // ✅ normalize status
+    let normalizedStatus = "Pending" as RentalRequestStatus;
     if (Status) {
-      const validStatuses = ['Pending', 'Approved', 'Rejected', 'Completed'];
-      const found = validStatuses.find(s => s.toLowerCase() === String(Status).toLowerCase());
-      if (!found) return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
+      const validStatuses = ["Pending", "Approved", "Rejected", "Completed"];
+      const found = validStatuses.find(
+        (s) => s.toLowerCase() === String(Status).toLowerCase()
+      );
+      if (!found)
+        return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
       normalizedStatus = found as RentalRequestStatus;
     }
 
+    // ✅ parse and validate date
     const parsedRentalDate = new Date(RentalDate);
     if (isNaN(parsedRentalDate.getTime())) {
-      return NextResponse.json({ error: 'Invalid RentalDate' }, { status: 400 });
+      return NextResponse.json({ error: "Invalid RentalDate" }, { status: 400 });
     }
 
-    const actor = user?.userId ?? 'system';
+    const actor = user?.userId ?? "system";
 
-    // Generate IDs before opening the transaction to avoid using the Prisma client
-    // inside the transaction callback for unrelated queries (prevents P2028).
-    const baID = await generateFormattedID('BA');
-    const rrID = await generateFormattedID('RR');
+    const baID = await generateFormattedID("BA");
+    const rrID = await generateFormattedID("RR");
 
+    // ✅ perform transaction
     const created = await prisma.$transaction(async (tx) => {
-      // determine route to use: prefer supplied RouteID, otherwise pick a route from DB (first created) or fallback '0'
-      let routeIdToUse: string = String(RouteID ?? '');
-      if (!routeIdToUse) {
-        const defaultRoute = await tx.route.findFirst({ orderBy: { CreatedAt: 'asc' } });
-        routeIdToUse = defaultRoute?.RouteID ?? '0';
-      }
-
+      // create BusAssignment (no RouteID anymore)
       await tx.busAssignment.create({
         data: {
           BusAssignmentID: baID,
           BusID: String(BusID),
-          RouteID: routeIdToUse,
-          AssignmentType: 'Rental',
+          AssignmentType: "Rental",
           CreatedBy: actor,
         },
       });
 
-      const rbaData: any = {
-        RentalBusAssignmentID: baID,
-        CreatedBy: actor,
-      };
-      if (rentalAssignment && typeof rentalAssignment === 'object' && 'Note' in rentalAssignment) {
-        rbaData.Note = rentalAssignment.Note ?? null;
-      }
-      await tx.rentalBusAssignment.create({ data: rbaData });
+      // create RentalBusAssignment
+      await tx.rentalBusAssignment.create({
+        data: {
+          RentalBusAssignmentID: baID,
+          CreatedBy: actor,
+        },
+      });
 
+      // create RentalRequest (RouteName provided by user)
       const rr = await tx.rentalRequest.create({
         data: {
           RentalRequestID: rrID,
           RentalBusAssignmentID: baID,
+          RouteName: String(RouteName), // ✅ now required from body
           PickupLocation: String(PickupLocation),
           DropoffLocation: String(DropoffLocation),
           DistanceKM: Number(DistanceKM),
-          RentalPrice: Number(RentalPrice),
+          TotalRentalAmount: Number(TotalRentalAmount),
           NumberOfPassengers: Number(NumberOfPassengers),
           RentalDate: parsedRentalDate,
           Duration: Number(Duration),
@@ -261,7 +260,6 @@ const postHandler = async (request: NextRequest) => {
                 select: {
                   BusAssignmentID: true,
                   BusID: true,
-                  RouteID: true,
                   AssignmentType: true,
                   Status: true,
                 },
@@ -274,14 +272,13 @@ const postHandler = async (request: NextRequest) => {
       return rr;
     });
 
-    //try { await setCache(RENTAL_REQUESTS_CACHE_KEY, null); } catch {}
-
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
-    console.error('Error creating rental request:', err);
-    // Log full error details for debugging
-    try { console.error(JSON.stringify(err, Object.getOwnPropertyNames(err))); } catch {}
-    return NextResponse.json({ error: 'Failed to create rental request' }, { status: 500 });
+    console.error("Error creating rental request:", err);
+    try {
+      console.error(JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    } catch {}
+    return NextResponse.json({ error: "Failed to create rental request" }, { status: 500 });
   }
 };
 

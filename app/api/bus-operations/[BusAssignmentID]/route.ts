@@ -19,7 +19,7 @@ type BusAssignmentUpdateData = Partial<{
   Lights: boolean;
   Oil: boolean;
   Water: boolean;
-  Break: boolean;
+  Brake: boolean;
   Air: boolean;
   Gas: boolean;
   Engine: boolean;
@@ -29,7 +29,7 @@ type BusAssignmentUpdateData = Partial<{
 }>;
 
 const booleanFields: (keyof BusAssignmentUpdateData)[] = [
-  'Battery', 'Lights', 'Oil', 'Water', 'Break',
+  'Battery', 'Lights', 'Oil', 'Water', 'Brake',
   'Air', 'Gas', 'Engine', 'TireCondition',
   'Self_Driver', 'Self_Conductor',
 ];
@@ -101,7 +101,7 @@ async function fetchFullRecord(BusAssignmentID: string) {
       Lights: true,
       Oil: true,
       Water: true,
-      Break: true,
+      Brake: true,
       Air: true,
       Gas: true,
       Engine: true,

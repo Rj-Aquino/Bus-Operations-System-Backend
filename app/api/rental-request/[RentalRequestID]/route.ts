@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/client';
-import { BusOperationStatus, RentalRequestStatus } from '@prisma/client';
+import { BusOperationStatus, RentalRequestStatus, DamageReportStatus } from '@prisma/client';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
 import { delCache, CACHE_KEYS } from '@/lib/cache';
@@ -21,7 +21,7 @@ const putHandler = async (request: NextRequest) => {
     const body = await request.json();
     const { command, rentalRequestUpdates, rentalAssignmentUpdates, busAssignmentUpdates, drivers } = body;
 
-    // Fetch current state first
+    // Fetch current rental request
     const current = await prisma.rentalRequest.findUnique({
       where: { RentalRequestID },
       include: {
@@ -39,11 +39,11 @@ const putHandler = async (request: NextRequest) => {
     const actor = user?.userId ?? 'SYSTEM';
 
     const allowedRBAFields = new Set([
-      'Battery','Lights','Oil','Water','Break','Air','Gas','Engine','TireCondition','Note'
+      'Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition', 'Note',
     ]);
 
     const allowedBAFields = new Set([
-      'Battery','Lights','Oil','Water','Break','Air','Gas','Engine','TireCondition','Self_Driver','Status'
+      'Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition', 'Self_Driver', 'Status',
     ]);
 
     const findBAStatus = (val: any): BusOperationStatus | undefined => {
@@ -53,18 +53,20 @@ const putHandler = async (request: NextRequest) => {
       return entries.find(v => v.toLowerCase() === String(val).toLowerCase()) as BusOperationStatus | undefined;
     };
 
-    // Main transaction
+    // 🔹 Main Transaction
     const result = await prisma.$transaction(async (tx) => {
       const currentStatus = current.Status;
+      const rba = current.RentalBusAssignment;
+      const busAssignment = rba?.BusAssignment;
 
-      // PENDING: Only "approve" or "reject" commands allowed.
+      // ========== PENDING ==========
       if (currentStatus === RentalRequestStatus.Pending) {
         if (rentalRequestUpdates && Object.keys(rentalRequestUpdates).length > 0)
           throw new Error('Updating RentalRequest fields is not allowed while Pending');
 
         if (command === 'approve') {
-          const rba = current.RentalBusAssignment;
-          if (!rba || !rba.BusAssignment) return Promise.reject(new Error('Cannot approve: no associated BusAssignment'));
+          if (!rba || !busAssignment)
+            throw new Error('Cannot approve: no associated BusAssignment');
 
           await tx.rentalRequest.update({
             where: { RentalRequestID },
@@ -72,18 +74,18 @@ const putHandler = async (request: NextRequest) => {
           });
 
           await tx.busAssignment.update({
-            where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID },
+            where: { BusAssignmentID: busAssignment.BusAssignmentID },
             data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
           });
 
-          // optional: allow busAssignmentUpdates & drivers under Approved+NotReady rules (rentalAssignmentUpdates NOT allowed here)
           if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
             const baData: any = {};
             for (const key of Object.keys(busAssignmentUpdates)) {
-              if (!allowedBAFields.has(key)) return Promise.reject(new Error(`Field ${key} not allowed on BusAssignment update`));
+              if (!allowedBAFields.has(key))
+                throw new Error(`Field ${key} not allowed on BusAssignment update`);
               if (key === 'Status') {
                 const found = findBAStatus(busAssignmentUpdates[key]);
-                if (!found) return Promise.reject(new Error('Invalid BusAssignment Status'));
+                if (!found) throw new Error('Invalid BusAssignment Status');
                 baData[key] = found;
               } else {
                 baData[key] = busAssignmentUpdates[key];
@@ -91,7 +93,10 @@ const putHandler = async (request: NextRequest) => {
             }
             if (Object.keys(baData).length > 0) {
               baData.UpdatedBy = actor;
-              await tx.busAssignment.update({ where: { BusAssignmentID: rba.BusAssignment.BusAssignmentID }, data: baData });
+              await tx.busAssignment.update({
+                where: { BusAssignmentID: busAssignment.BusAssignmentID },
+                data: baData,
+              });
             }
           }
 
@@ -109,112 +114,31 @@ const putHandler = async (request: NextRequest) => {
               });
             }
           }
-
-          return tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
-          });
         } else if (command === 'reject') {
           await tx.rentalRequest.update({
             where: { RentalRequestID },
             data: { Status: RentalRequestStatus.Rejected, UpdatedBy: actor },
           });
-
-          return tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
-          });
-        } else {
-          return tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
-          });
-        }
-      }
-
-      // COMPLETED: allow damage report creation only
-      if (currentStatus === RentalRequestStatus.Completed) {
-        const rba = current.RentalBusAssignment;
-        if (!rba) return Promise.reject(new Error('No RentalBusAssignment found for this completed request'));
-
-        // Only allow damage report creation for completed rentals
-        if (rentalRequestUpdates && rentalRequestUpdates.damageReport) {
-          const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
-          const DamageReportID = await generateFormattedID('DR');
-
-          const damageData: any = {
-            DamageReportID,
-            RentalRequestID,
-            RentalBusAssignmentID: rba.RentalBusAssignmentID,
-            Note: note || null,
-            CheckDate: checkDate ? new Date(checkDate) : new Date(),
-            CreatedBy: actor,
-          };
-
-          // Map vehicle condition object to individual boolean fields
-          if (vehicleCondition && typeof vehicleCondition === 'object') {
-            damageData.Battery = vehicleCondition.Battery || false;
-            damageData.Lights = vehicleCondition.Lights || false;
-            damageData.Oil = vehicleCondition.Oil || false;
-            damageData.Water = vehicleCondition.Water || false;
-            damageData.Brake = vehicleCondition.Brake || false;
-            damageData.Air = vehicleCondition.Air || false;
-            damageData.Gas = vehicleCondition.Gas || false;
-            damageData.Engine = vehicleCondition.Engine || false;
-            damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
-          }
-
-          // Auto-assign status based on damage items
-          // Note: false = damaged/issue found, true = no damage/OK
-          // If ALL items are true (all OK), set status to NA (no damage found)
-          // If ANY item is false (has damage), set status to Pending (needs review)
-          const allItemsOk = damageData.Battery && damageData.Lights && damageData.Oil && 
-                             damageData.Water && damageData.Brake && damageData.Air && 
-                             damageData.Gas && damageData.Engine && damageData.TireCondition;
-          
-          damageData.Status = allItemsOk ? 'NA' : 'Pending';
-
-          await tx.damageReport.create({ data: damageData });
-
-          return tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: { 
-              RentalBusAssignment: { 
-                include: { 
-                  BusAssignment: true, 
-                  RentalDrivers: true,
-                  DamageReports: true
-                } 
-              },
-              DamageReports: true
-            },
-          });
         }
 
-        // If no damage report provided, just return current state
         return tx.rentalRequest.findUnique({
           where: { RentalRequestID },
-          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true, DamageReports: true } }, DamageReports: true },
+          include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
         });
       }
 
-      // APPROVED: behavior depends on BusAssignment.Status
-      if (currentStatus === RentalRequestStatus.Approved) {
-        const rba = current.RentalBusAssignment;
-        if (!rba || !rba.BusAssignment)
-          throw new Error('No BusAssignment associated with this approved request');
+      // ========== APPROVED ==========
+      if (currentStatus === RentalRequestStatus.Approved && rba && busAssignment) {
+        const baStatus = busAssignment.Status as BusOperationStatus;
+        const readinessFields = ['Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition', 'Self_Driver'];
 
-        const ba = rba.BusAssignment;
-        const baStatus = ba.Status as BusOperationStatus;
-
-        // ───── Approved + NotReady ─────
+        // Approved + NotReady → readiness checks
         if (baStatus === BusOperationStatus.NotReady) {
-          if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
+          if (busAssignmentUpdates) {
             const baData: any = {};
             for (const key of Object.keys(busAssignmentUpdates)) {
               if (!allowedBAFields.has(key))
                 throw new Error(`Field ${key} not allowed on BusAssignment update`);
-
               if (key === 'Status') {
                 const found = findBAStatus(busAssignmentUpdates[key]);
                 if (!found) throw new Error('Invalid BusAssignment Status');
@@ -223,181 +147,142 @@ const putHandler = async (request: NextRequest) => {
                 baData[key] = busAssignmentUpdates[key];
               }
             }
-
-            // Default Self_Conductor to true if not provided
-            if (!('Self_Conductor' in baData)) {
-              baData.Self_Conductor = true;
-            }
-
-            if (Object.keys(baData).length > 0) {
-              baData.UpdatedBy = actor;
-              await tx.busAssignment.update({
-                where: { BusAssignmentID: ba.BusAssignmentID },
-                data: baData,
-              });
-            }
+            baData.UpdatedBy = actor;
+            await tx.busAssignment.update({ where: { BusAssignmentID: busAssignment.BusAssignmentID }, data: baData });
           }
-
-          const readinessFields = [
-            'Battery','Lights','Oil','Water','Break','Air','Gas','Engine','TireCondition','Self_Driver'
-          ];
 
           const updates = busAssignmentUpdates ?? {};
-          const hasFalse = readinessFields.some(field => updates[field] === false);
-          const allTrue = readinessFields.every(field => updates[field] === true);
+          const allTrue = readinessFields.every(f => updates[f] === true);
           const driverCount = Array.isArray(drivers) ? drivers.length : 0;
+          if (driverCount !== 2) throw new Error(`Exactly 2 drivers required (found ${driverCount})`);
 
-          // Require exactly 2 drivers
-          if (driverCount !== 2) {
-            throw new Error(`Cannot proceed: exactly 2 drivers required (found ${driverCount}).`);
-          }
-
-          // Replace drivers if provided
-          if (Array.isArray(drivers)) {
-            await tx.rentalDriver.deleteMany({
-              where: { RentalBusAssignmentID: rba.RentalBusAssignmentID },
+          await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
+          for (const driverID of drivers) {
+            const rdID = await generateFormattedID('RD');
+            await tx.rentalDriver.create({
+              data: {
+                RentalDriverID: rdID,
+                RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                DriverID: String(driverID),
+                CreatedBy: actor,
+              },
             });
-            for (const driverID of drivers) {
-              const rdID = await generateFormattedID('RD');
-              await tx.rentalDriver.create({
-                data: {
-                  RentalDriverID: rdID,
-                  RentalBusAssignmentID: rba.RentalBusAssignmentID,
-                  DriverID: String(driverID),
-                  CreatedBy: actor,
-                },
-              });
-            }
           }
 
-          // ✅ Move to NotStarted only if all readiness fields true AND 2 drivers
           if (allTrue && driverCount === 2) {
             await tx.busAssignment.update({
-              where: { BusAssignmentID: ba.BusAssignmentID },
+              where: { BusAssignmentID: busAssignment.BusAssignmentID },
               data: { Status: BusOperationStatus.NotStarted, UpdatedBy: actor },
             });
           }
-
-          // Always return the latest updated request
-          return await tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: {
-              RentalBusAssignment: {
-                include: { BusAssignment: true, RentalDrivers: true },
-              },
-            },
-          });
         }
 
-        // ───── Approved + NotStarted ─────
+        // Approved + NotStarted → start operation
         if (baStatus === BusOperationStatus.NotStarted) {
-          if (command === 'toInOperation' || (busAssignmentUpdates && 'Status' in busAssignmentUpdates)) {
-            const target = command === 'toInOperation'
-              ? BusOperationStatus.InOperation
-              : findBAStatus(busAssignmentUpdates.Status);
-
-            if (!target || target !== BusOperationStatus.InOperation)
-              throw new Error('When NotStarted, only transition to InOperation is permitted');
-
+          if (command === 'toInOperation') {
             await tx.busAssignment.update({
-              where: { BusAssignmentID: ba.BusAssignmentID },
+              where: { BusAssignmentID: busAssignment.BusAssignmentID },
               data: { Status: BusOperationStatus.InOperation, UpdatedBy: actor },
             });
           } else {
-            throw new Error('Only Status transition to InOperation allowed when BusAssignment is NotStarted');
+            throw new Error('Only transition to InOperation allowed from NotStarted');
           }
-
-          return await tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            include: { RentalBusAssignment: { include: { BusAssignment: true, RentalDrivers: true } } },
-          });
         }
 
-        // ───── Approved + InOperation ─────
+        // Approved + InOperation → complete
         if (baStatus === BusOperationStatus.InOperation) {
-          if (rentalAssignmentUpdates && typeof rentalAssignmentUpdates === 'object') {
-            const data: any = {};
-            for (const key of Object.keys(rentalAssignmentUpdates)) {
-              if (!allowedRBAFields.has(key))
-                throw new Error(`Field ${key} not allowed on RentalBusAssignment update`);
-              data[key] = rentalAssignmentUpdates[key];
-            }
+          if (command === 'complete') {
+            await tx.rentalRequest.update({
+              where: { RentalRequestID },
+              data: { Status: RentalRequestStatus.Completed, UpdatedBy: actor },
+            });
 
-            if (Object.keys(data).length > 0) {
-              data.UpdatedBy = actor;
-              await tx.rentalBusAssignment.update({
-                where: { RentalBusAssignmentID: rba.RentalBusAssignmentID },
-                data,
-              });
-            }
-          }
-
-          if (command === 'complete' || command === 'updateStatus') {
-            // Update the rental request status to Completed
-            await tx.rentalRequest.update({ where: { RentalRequestID }, data: { Status: RentalRequestStatus.Completed, UpdatedBy: actor } });
-
-            // If damage report data is provided, create a damage report
-            if (rentalRequestUpdates && rentalRequestUpdates.damageReport) {
+            // 🆕 Create DamageReport (uses BusAssignmentID, not RentalBusAssignmentID)
+            if (rentalRequestUpdates?.damageReport) {
               const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
               const DamageReportID = await generateFormattedID('DR');
 
               const damageData: any = {
                 DamageReportID,
-                RentalRequestID,
-                RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                BusAssignmentID: busAssignment.BusAssignmentID,
                 Note: note || null,
                 CheckDate: checkDate ? new Date(checkDate) : new Date(),
                 CreatedBy: actor,
               };
 
-              // Map vehicle condition object to individual boolean fields
-              if (vehicleCondition && typeof vehicleCondition === 'object') {
-                damageData.Battery = vehicleCondition.Battery || false;
-                damageData.Lights = vehicleCondition.Lights || false;
-                damageData.Oil = vehicleCondition.Oil || false;
-                damageData.Water = vehicleCondition.Water || false;
-                damageData.Brake = vehicleCondition.Brake || false;
-                damageData.Air = vehicleCondition.Air || false;
-                damageData.Gas = vehicleCondition.Gas || false;
-                damageData.Engine = vehicleCondition.Engine || false;
-                damageData.TireCondition = vehicleCondition['Tire Condition'] || false;
+              // Map booleans
+              const fields = ['Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition'];
+              for (const field of fields) {
+                damageData[field] = vehicleCondition?.[field] ?? false;
               }
+
+              const allOk = fields.every(f => damageData[f] === true);
+              damageData.Status = allOk ? DamageReportStatus.NA : DamageReportStatus.Pending;
 
               await tx.damageReport.create({ data: damageData });
             }
-
-            return await tx.rentalRequest.findUnique({
-              where: { RentalRequestID },
-              include: { 
-                RentalBusAssignment: { 
-                  include: { 
-                    BusAssignment: true, 
-                    RentalDrivers: true,
-                    DamageReports: true
-                  } 
-                },
-                DamageReports: true
-              },
-            });
+          } else {
+            throw new Error('Only "complete" command allowed while InOperation');
           }
-
-          throw new Error('Only "complete" command allowed when BusAssignment is InOperation');
         }
 
-        throw new Error('BusAssignment updates not allowed for current BusAssignment status');
+        return tx.rentalRequest.findUnique({
+          where: { RentalRequestID },
+          include: {
+            RentalBusAssignment: {
+              include: { BusAssignment: true, RentalDrivers: true },
+            },
+          },
+        });
       }
 
-      // Default fallback
+      // ========== COMPLETED ==========
+      if (currentStatus === RentalRequestStatus.Completed && rba && busAssignment) {
+        if (rentalRequestUpdates?.damageReport) {
+          const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
+          const DamageReportID = await generateFormattedID('DR');
+
+          const damageData: any = {
+            DamageReportID,
+            BusAssignmentID: busAssignment.BusAssignmentID,
+            Note: note || null,
+            CheckDate: checkDate ? new Date(checkDate) : new Date(),
+            CreatedBy: actor,
+          };
+
+          const fields = ['Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition'];
+          for (const field of fields) {
+            damageData[field] = vehicleCondition?.[field] ?? false;
+          }
+
+          const allOk = fields.every(f => damageData[f] === true);
+          damageData.Status = allOk ? DamageReportStatus.NA : DamageReportStatus.Pending;
+
+          await tx.damageReport.create({ data: damageData });
+        }
+
+        return tx.rentalRequest.findUnique({
+          where: { RentalRequestID },
+          include: {
+            RentalBusAssignment: {
+              include: {
+                BusAssignment: { include: { DamageReports: true } },
+                RentalDrivers: true,
+              },
+            },
+          },
+        });
+      }
+
       return current;
     });
 
     return NextResponse.json(result, { status: 200 });
   } catch (err) {
     console.error('UPDATE_RENTAL_REQUEST_ERROR', err);
-    try { console.error(JSON.stringify(err, Object.getOwnPropertyNames(err))); } catch {}
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to update rental request' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 };

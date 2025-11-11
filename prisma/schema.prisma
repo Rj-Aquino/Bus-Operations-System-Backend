@@ -122,7 +122,7 @@ model BusAssignment {
   Lights          Boolean @default(false)
   Oil             Boolean @default(false)
   Water           Boolean @default(false)
-  Break           Boolean @default(false)
+  Brake           Boolean @default(false)
   Air             Boolean @default(false)
   Gas             Boolean @default(false)
   Engine          Boolean @default(false)

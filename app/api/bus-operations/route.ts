@@ -65,7 +65,7 @@ const getHandler = async (request: NextRequest) => {
         Lights: true,
         Oil: true,
         Water: true,
-        Break: true,
+        Brake: true,
         Air: true,
         Gas: true,
         Engine: true,

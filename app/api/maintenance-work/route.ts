@@ -1,336 +1,106 @@
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/client';
-import { authenticateRequest } from '@/lib/auth';
-import { withCors } from '@/lib/withcors';
-import { generateFormattedID } from '@/lib/idGenerator';
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/client";
+import { withCors } from "@/lib/withcors";
+import { authenticateRequest } from "@/lib/auth";
+import { fetchNewBuses } from "@/lib/fetchExternal";
 
-/**
- * Helper function to generate the next WorkNo
- * Format: WRK-00001, WRK-00002, etc.
- */
-async function generateNextWorkNo(): Promise<string> {
-  // Get the latest WorkNo
-  const latestWork = await prisma.maintenanceWork.findFirst({
-    where: {
-      WorkNo: {
-        not: null
-      }
-    },
-    orderBy: {
-      WorkNo: 'desc'
-    },
-    select: {
-      WorkNo: true
-    }
-  });
-
-  if (!latestWork || !latestWork.WorkNo) {
-    // First work number
-    return 'WRK-00001';
-  }
-
-  // Extract number from WRK-00001
-  const currentNumber = parseInt(latestWork.WorkNo.split('-')[1]);
-  const nextNumber = currentNumber + 1;
-
-  // Format as WRK-00001
-  return `WRK-${String(nextNumber).padStart(5, '0')}`;
-}
-
-/**
- * POST /api/maintenance-work
- * Creates a new maintenance work from an accepted damage report
- */
-const postHandler = async (request: NextRequest) => {
+const getMaintenanceWork = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
-
-  try {
-    const body = await request.json();
-    const {
-      damageReportId,
-      priority = 'Medium',
-      workTitle,
-      assignedTo,
-      scheduledDate,
-      dueDate,
-      estimatedCost,
-      workNotes
-    } = body;
-
-    // Validate required fields
-    if (!damageReportId) {
-      return NextResponse.json(
-        { error: 'damageReportId is required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify that the damage report exists and is accepted
-    const damageReport = await prisma.damageReport.findUnique({
-      where: { DamageReportID: damageReportId },
-      include: {
-        RentalBusAssignment: {
-          include: {
-            BusAssignment: {
-              select: {
-                BusID: true
-              }
-            }
-          }
-        },
-        MaintenanceWork: true
-      }
-    });
-
-    if (!damageReport) {
-      return NextResponse.json(
-        { error: 'Damage report not found' },
-        { status: 404 }
-      );
-    }
-
-    if (damageReport.Status !== 'Accepted') {
-      return NextResponse.json(
-        { error: 'Damage report must be accepted before creating maintenance work' },
-        { status: 400 }
-      );
-    }
-
-    // Check if maintenance work already exists for this damage report
-    if (damageReport.MaintenanceWork) {
-      return NextResponse.json(
-        { error: 'Maintenance work already exists for this damage report' },
-        { status: 400 }
-      );
-    }
-
-    // Get BusID from the damage report
-    const busId = damageReport.RentalBusAssignment?.BusAssignment?.BusID;
-    if (!busId) {
-      return NextResponse.json(
-        { error: 'Could not determine BusID from damage report' },
-        { status: 400 }
-      );
-    }
-
-    // Generate ID for the maintenance work
-    const MaintenanceWorkID = await generateFormattedID('MW');
-
-    // Generate WorkNo for the maintenance work
-    const WorkNo = await generateNextWorkNo();
-
-    // Create the maintenance work
-    const maintenanceWork = await prisma.maintenanceWork.create({
-      data: {
-        MaintenanceWorkID,
-        WorkNo,
-        DamageReportID: damageReportId,
-        BusID: busId,
-        Priority: priority,
-        WorkTitle: workTitle || null,
-        AssignedTo: assignedTo || null,
-        ScheduledDate: scheduledDate ? new Date(scheduledDate) : null,
-        DueDate: dueDate ? new Date(dueDate) : null,
-        EstimatedCost: estimatedCost || null,
-        WorkNotes: workNotes || null,
-        CreatedBy: user?.userId || null,
-      },
-      include: {
-        DamageReport: {
-          include: {
-            RentalRequest: {
-              select: {
-                CustomerName: true,
-                RentalRequestID: true
-              }
-            },
-            RentalBusAssignment: {
-              include: {
-                BusAssignment: {
-                  select: {
-                    BusID: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    return NextResponse.json(maintenanceWork, { status: 201 });
-  } catch (err) {
-    console.error('CREATE_MAINTENANCE_WORK_ERROR', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to create maintenance work' },
-      { status: 500 }
-    );
-  }
-};
-
-/**
- * GET /api/maintenance-work
- * Retrieves all maintenance works
- * GET /api/maintenance-work?status=Pending
- * Retrieves maintenance works filtered by status
- */
-const getHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
+  if (error) return NextResponse.json({ error }, { status });
 
   try {
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status');
+    const filterStatus = searchParams.get("status");
+    const filterPriority = searchParams.get("priority");
 
     const whereClause: any = {};
-    if (statusFilter) {
-      whereClause.Status = statusFilter;
-    }
+    if (filterStatus) whereClause.Status = filterStatus;
+    if (filterPriority) whereClause.Priority = filterPriority;
 
+    // ✅ Step 1: Fetch MaintenanceWork with DamageReport and BusAssignment
     const maintenanceWorks = await prisma.maintenanceWork.findMany({
       where: whereClause,
       include: {
         DamageReport: {
           include: {
-            RentalRequest: {
+            BusAssignment: {
               select: {
-                CustomerName: true,
-                RentalRequestID: true
-              }
+                BusAssignmentID: true,
+                BusID: true,
+              },
             },
-            RentalBusAssignment: {
-              include: {
-                BusAssignment: {
-                  select: {
-                    BusID: true
-                  }
-                }
-              }
-            }
-          }
-        }
+          },
+        },
       },
-      orderBy: {
-        CreatedAt: 'desc'
-      }
+      orderBy: { CreatedAt: "desc" },
     });
 
-    return NextResponse.json(maintenanceWorks, { status: 200 });
+    // ✅ Step 2: Fetch bus data from external source (with fallback)
+    const buses = await fetchNewBuses();
+    const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
+
+    // ✅ Step 3: Create a lookup map for quick plate number retrieval
+    const busMap = Object.fromEntries(
+      busesArr.map((b: any) => [b.bus_id ?? b.busId, b])
+    );
+
+    // ✅ Step 4: Format the output
+    const formatted = maintenanceWorks.map((work) => {
+      const bus = busMap[work.DamageReport?.BusAssignment?.BusID ?? ""];
+
+      return {
+        MaintenanceWorkID: work.MaintenanceWorkID,
+        DamageReportID: work.DamageReportID,
+
+        // 🔧 Maintenance Details
+        Status: work.Status,
+        Priority: work.Priority,
+        WorkTitle: work.WorkTitle,
+        ScheduledDate: work.ScheduledDate,
+        DueDate: work.DueDate,
+        CompletedDate: work.CompletedDate,
+        EstimatedCost: work.EstimatedCost,
+        ActualCost: work.ActualCost,
+        WorkNotes: work.WorkNotes,
+
+        // 🧾 Damage Report Details
+        DamageNote: work.DamageReport?.Note ?? null,
+        CheckDate: work.DamageReport?.CheckDate ?? null,
+        DamageStatus: work.DamageReport?.Status ?? null,
+
+        // 🧩 Vehicle Condition Checks
+        Battery: work.DamageReport?.Battery ?? false,
+        Lights: work.DamageReport?.Lights ?? false,
+        Oil: work.DamageReport?.Oil ?? false,
+        Water: work.DamageReport?.Water ?? false,
+        Brake: work.DamageReport?.Brake ?? false,
+        Air: work.DamageReport?.Air ?? false,
+        Gas: work.DamageReport?.Gas ?? false,
+        Engine: work.DamageReport?.Engine ?? false,
+        TireCondition: work.DamageReport?.TireCondition ?? false,
+
+        // 🚍 Bus Details
+        BusPlateNumber: bus?.plate_number ?? bus?.license_plate ?? null,
+
+        // 🕒 Metadata
+        CreatedAt: work.CreatedAt,
+        UpdatedAt: work.UpdatedAt,
+        CreatedBy: work.CreatedBy,
+        UpdatedBy: work.UpdatedBy,
+      };
+    });
+
+    return NextResponse.json(formatted, { status: 200 });
   } catch (err) {
-    console.error('GET_MAINTENANCE_WORKS_ERROR', err);
+    console.error("GET_MAINTENANCE_WORK_ERROR", err);
     return NextResponse.json(
-      { error: 'Failed to retrieve maintenance works' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
 };
 
-/**
- * PATCH /api/maintenance-work?maintenanceWorkId=xxx
- * Updates a maintenance work
- */
-const patchHandler = async (request: NextRequest) => {
-  const { user, error, status } = await authenticateRequest(request);
-  if (error) {
-    return NextResponse.json({ error }, { status });
-  }
-
-  try {
-    const { searchParams } = new URL(request.url);
-    const maintenanceWorkId = searchParams.get('maintenanceWorkId');
-
-    if (!maintenanceWorkId) {
-      return NextResponse.json(
-        { error: 'maintenanceWorkId is required' },
-        { status: 400 }
-      );
-    }
-
-    const body = await request.json();
-    const {
-      status: workStatus,
-      priority,
-      workTitle,
-      assignedTo,
-      scheduledDate,
-      dueDate,
-      completedDate,
-      estimatedCost,
-      actualCost,
-      workNotes
-    } = body;
-
-    // Check if maintenance work exists
-    const existingWork = await prisma.maintenanceWork.findUnique({
-      where: { MaintenanceWorkID: maintenanceWorkId }
-    });
-
-    if (!existingWork) {
-      return NextResponse.json(
-        { error: 'Maintenance work not found' },
-        { status: 404 }
-      );
-    }
-
-    // Build update data
-    const updateData: any = {
-      UpdatedBy: user?.userId || null,
-    };
-
-    if (workStatus !== undefined) updateData.Status = workStatus;
-    if (priority !== undefined) updateData.Priority = priority;
-    if (workTitle !== undefined) updateData.WorkTitle = workTitle;
-    if (assignedTo !== undefined) updateData.AssignedTo = assignedTo;
-    if (scheduledDate !== undefined) updateData.ScheduledDate = scheduledDate ? new Date(scheduledDate) : null;
-    if (dueDate !== undefined) updateData.DueDate = dueDate ? new Date(dueDate) : null;
-    if (completedDate !== undefined) updateData.CompletedDate = completedDate ? new Date(completedDate) : null;
-    if (estimatedCost !== undefined) updateData.EstimatedCost = estimatedCost;
-    if (actualCost !== undefined) updateData.ActualCost = actualCost;
-    if (workNotes !== undefined) updateData.WorkNotes = workNotes;
-
-    // Update the maintenance work
-    const updatedWork = await prisma.maintenanceWork.update({
-      where: { MaintenanceWorkID: maintenanceWorkId },
-      data: updateData,
-      include: {
-        DamageReport: {
-          include: {
-            RentalRequest: {
-              select: {
-                CustomerName: true,
-                RentalRequestID: true
-              }
-            },
-            RentalBusAssignment: {
-              include: {
-                BusAssignment: {
-                  select: {
-                    BusID: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    return NextResponse.json(updatedWork, { status: 200 });
-  } catch (err) {
-    console.error('UPDATE_MAINTENANCE_WORK_ERROR', err);
-    return NextResponse.json(
-      { error: 'Failed to update maintenance work' },
-      { status: 500 }
-    );
-  }
-};
-
-export const POST = withCors(postHandler);
-export const GET = withCors(getHandler);
-export const PATCH = withCors(patchHandler);
-export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
+export const GET = withCors(getMaintenanceWork);
+export const OPTIONS = withCors(() =>
+  Promise.resolve(new NextResponse(null, { status: 204 }))
+);

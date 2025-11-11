@@ -120,7 +120,7 @@ CREATE TABLE "BusAssignment" (
     "Lights" BOOLEAN NOT NULL DEFAULT false,
     "Oil" BOOLEAN NOT NULL DEFAULT false,
     "Water" BOOLEAN NOT NULL DEFAULT false,
-    "Break" BOOLEAN NOT NULL DEFAULT false,
+    "Brake" BOOLEAN NOT NULL DEFAULT false,
     "Air" BOOLEAN NOT NULL DEFAULT false,
     "Gas" BOOLEAN NOT NULL DEFAULT false,
     "Engine" BOOLEAN NOT NULL DEFAULT false,
