@@ -21,7 +21,6 @@ const putHandler = async (request: NextRequest) => {
     const body = await request.json();
     const { command, rentalRequestUpdates, rentalAssignmentUpdates, busAssignmentUpdates, drivers } = body;
 
-    // Fetch current rental request
     const current = await prisma.rentalRequest.findUnique({
       where: { RentalRequestID },
       include: {
@@ -61,63 +60,99 @@ const putHandler = async (request: NextRequest) => {
 
       // ========== PENDING ==========
       if (currentStatus === RentalRequestStatus.Pending) {
-        if (rentalRequestUpdates && Object.keys(rentalRequestUpdates).length > 0)
-          throw new Error('Updating RentalRequest fields is not allowed while Pending');
+        const allowedApproveFields = [
+          'DownPaymentAmount',
+          'BalanceAmount',
+          'DownPaymentDate',
+          'FullPaymentDate',
+        ];
+        const allowedRejectFields = ['CancelledAtDate', 'CancelledReason'];
 
-        if (command === 'approve') {
+        const isApprove = command === 'approve';
+        const isReject = command === 'reject';
+
+        // ⚠️ Block updates unless they are part of approve/reject commands
+        if (rentalRequestUpdates && Object.keys(rentalRequestUpdates).length > 0) {
+          const allowedFields = isApprove
+            ? allowedApproveFields
+            : isReject
+            ? allowedRejectFields
+            : [];
+
+          const hasInvalidFields = Object.keys(rentalRequestUpdates).some(
+            (key) => !allowedFields.includes(key)
+          );
+
+          if (hasInvalidFields) {
+            throw new Error('Updating RentalRequest fields is not allowed while Pending');
+          }
+        }
+
+        // =======================
+        // ✅ APPROVE LOGIC
+        // =======================
+        if (isApprove) {
           if (!rba || !busAssignment)
             throw new Error('Cannot approve: no associated BusAssignment');
 
+          // ✅ Always update provided fields (partial allowed)
           await tx.rentalRequest.update({
             where: { RentalRequestID },
-            data: { Status: RentalRequestStatus.Approved, UpdatedBy: actor },
+            data: {
+              ...rentalRequestUpdates,
+              UpdatedBy: actor,
+            },
           });
 
-          await tx.busAssignment.update({
-            where: { BusAssignmentID: busAssignment.BusAssignmentID },
-            data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
+          // 🔍 Recheck current record after update
+          const updatedRequest = await tx.rentalRequest.findUnique({
+            where: { RentalRequestID },
+            select: {
+              DownPaymentAmount: true,
+              BalanceAmount: true,
+              DownPaymentDate: true,
+              FullPaymentDate: true,
+            },
           });
 
-          if (busAssignmentUpdates && typeof busAssignmentUpdates === 'object') {
-            const baData: any = {};
-            for (const key of Object.keys(busAssignmentUpdates)) {
-              if (!allowedBAFields.has(key))
-                throw new Error(`Field ${key} not allowed on BusAssignment update`);
-              if (key === 'Status') {
-                const found = findBAStatus(busAssignmentUpdates[key]);
-                if (!found) throw new Error('Invalid BusAssignment Status');
-                baData[key] = found;
-              } else {
-                baData[key] = busAssignmentUpdates[key];
-              }
-            }
-            if (Object.keys(baData).length > 0) {
-              baData.UpdatedBy = actor;
-              await tx.busAssignment.update({
-                where: { BusAssignmentID: busAssignment.BusAssignmentID },
-                data: baData,
-              });
-            }
-          }
+          const allPaymentsProvided =
+            updatedRequest?.DownPaymentAmount != null &&
+            updatedRequest?.BalanceAmount != null &&
+            updatedRequest?.DownPaymentDate != null &&
+            updatedRequest?.FullPaymentDate != null;
 
-          if (Array.isArray(drivers)) {
-            await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
-            for (const driverID of drivers) {
-              const rdID = await generateFormattedID('RD');
-              await tx.rentalDriver.create({
-                data: {
-                  RentalDriverID: rdID,
-                  RentalBusAssignmentID: rba.RentalBusAssignmentID,
-                  DriverID: String(driverID),
-                  CreatedBy: actor,
-                },
-              });
-            }
+          if (allPaymentsProvided) {
+            // ✅ Move to Approved + BusAssignment → NotReady
+            await tx.rentalRequest.update({
+              where: { RentalRequestID },
+              data: { Status: RentalRequestStatus.Approved, UpdatedBy: actor },
+            });
+
+            await tx.busAssignment.update({
+              where: { BusAssignmentID: busAssignment.BusAssignmentID },
+              data: { Status: BusOperationStatus.NotReady, UpdatedBy: actor },
+            });
           }
-        } else if (command === 'reject') {
+        }
+
+        // =======================
+        // ❌ REJECT LOGIC
+        // =======================
+        else if (isReject) {
+          const cancelReason = rentalRequestUpdates?.CancelledReason || 'No reason provided';
+          const cancelDate =
+            rentalRequestUpdates?.CancelledAtDate
+              ? new Date(rentalRequestUpdates.CancelledAtDate)
+              : new Date();
+
           await tx.rentalRequest.update({
             where: { RentalRequestID },
-            data: { Status: RentalRequestStatus.Rejected, UpdatedBy: actor },
+            data: {
+              Status: RentalRequestStatus.Rejected,
+              CancelledReason: cancelReason,
+              CancelledAtDate: cancelDate,
+              UpdatedBy: actor,
+            },
           });
         }
 
@@ -130,9 +165,11 @@ const putHandler = async (request: NextRequest) => {
       // ========== APPROVED ==========
       if (currentStatus === RentalRequestStatus.Approved && rba && busAssignment) {
         const baStatus = busAssignment.Status as BusOperationStatus;
-        const readinessFields = ['Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition', 'Self_Driver'];
+        const readinessFields = [
+          'Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition', 'Self_Driver',
+        ];
 
-        // Approved + NotReady → readiness checks
+        // Approved + NotReady
         if (baStatus === BusOperationStatus.NotReady) {
           if (busAssignmentUpdates) {
             const baData: any = {};
@@ -177,7 +214,7 @@ const putHandler = async (request: NextRequest) => {
           }
         }
 
-        // Approved + NotStarted → start operation
+        // Approved + NotStarted
         if (baStatus === BusOperationStatus.NotStarted) {
           if (command === 'toInOperation') {
             await tx.busAssignment.update({
@@ -189,7 +226,7 @@ const putHandler = async (request: NextRequest) => {
           }
         }
 
-        // Approved + InOperation → complete
+        // Approved + InOperation
         if (baStatus === BusOperationStatus.InOperation) {
           if (command === 'complete') {
             await tx.rentalRequest.update({
@@ -197,11 +234,9 @@ const putHandler = async (request: NextRequest) => {
               data: { Status: RentalRequestStatus.Completed, UpdatedBy: actor },
             });
 
-            // 🆕 Create DamageReport (uses BusAssignmentID, not RentalBusAssignmentID)
             if (rentalRequestUpdates?.damageReport) {
               const { vehicleCondition, note, checkDate } = rentalRequestUpdates.damageReport;
               const DamageReportID = await generateFormattedID('DR');
-
               const damageData: any = {
                 DamageReportID,
                 BusAssignmentID: busAssignment.BusAssignmentID,
@@ -210,7 +245,6 @@ const putHandler = async (request: NextRequest) => {
                 CreatedBy: actor,
               };
 
-              // Map booleans
               const fields = ['Battery', 'Lights', 'Oil', 'Water', 'Brake', 'Air', 'Gas', 'Engine', 'TireCondition'];
               for (const field of fields) {
                 damageData[field] = vehicleCondition?.[field] ?? false;
@@ -286,6 +320,7 @@ const putHandler = async (request: NextRequest) => {
     );
   }
 };
+
 
 const patchHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);

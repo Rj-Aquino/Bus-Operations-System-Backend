@@ -432,7 +432,6 @@ model Task {
   MaintenanceWork        MaintenanceWork @relation(fields: [MaintenanceWorkID], references: [MaintenanceWorkID], onDelete: Cascade)
   ToolsUsed              TaskTool[]
 
-
   CreatedAt              DateTime @default(now())
   UpdatedAt              DateTime @updatedAt
   CreatedBy              String?
