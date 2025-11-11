@@ -4,7 +4,7 @@ import { fetchNewDrivers, fetchNewConductors, fetchNewBuses } from "@/lib/fetchE
 import { authenticateRequest } from "@/lib/auth";
 import { withCors } from "@/lib/withcors";
 
-export const getHandler = async (request: NextRequest) => {
+const getHandler = async (request: NextRequest) => {
   // === Authentication ===
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
