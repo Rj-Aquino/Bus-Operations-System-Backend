@@ -1,4 +1,4 @@
-import { fetchNewConductors } from '@/lib/fetchExternal';
+import { fetchNewConductors, fetchConductors} from '@/lib/fetchExternal';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { withCors } from '@/lib/withcors';
@@ -26,14 +26,21 @@ const getHandler = async (request: NextRequest) => {
 
   try {
     
-    const employees = await fetchNewConductors();
+    const employees = await fetchConductors();
 
     // Map to required conductor fields
-    const conductors = employees.map((emp: any) => ({
+    const employeeList = Array.isArray(employees)
+      ? employees
+      : employees?.employees ?? [];
+
+    // Map conductors
+    const conductors = employeeList.map((emp: any) => ({
       conductor_id: emp.employeeNumber,
       name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
       contactNo: emp.phone,
-      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+      address: emp.barangay || emp.zipCode
+        ? `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`
+        : 'N/A',
     }));
 
     await setCache(CONDUCTORS_CACHE_KEY, conductors);

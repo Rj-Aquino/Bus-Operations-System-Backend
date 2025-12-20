@@ -29,11 +29,18 @@ const getHandler = async (request: NextRequest) => {
     const employees = await fetchNewConductors();
 
     // Map to required conductor fields
-    const conductors = employees.map((emp: any) => ({
+    const employeeList = Array.isArray(employees)
+      ? employees
+      : employees?.employees ?? [];
+
+    // Map conductors
+    const conductors = employeeList.map((emp: any) => ({
       conductor_id: emp.employeeNumber,
       name: `${emp.firstName} ${emp.middleName ? emp.middleName + ' ' : ''}${emp.lastName}`,
       contactNo: emp.phone,
-      address: `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`,
+      address: emp.barangay || emp.zipCode
+        ? `${emp.barangay ?? ''}${emp.zipCode ? ', ' + emp.zipCode : ''}`
+        : 'N/A',
     }));
 
     // Get all assigned (not deleted) ConductorIDs from the database
