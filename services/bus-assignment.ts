@@ -75,8 +75,8 @@ export class BusAssignmentService {
     }
   }
 
-  private async clearCache(): Promise<void> {
-    await Promise.all(this.CACHE_KEYS_TO_CLEAR.map(key => delCache(key)));
+  private async clearAllRelatedCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
   }
 
   async createBusAssignment(data: any, actor: string | null): Promise<any> {
@@ -118,7 +118,7 @@ export class BusAssignmentService {
       { timeout: 10_000 }
     );
 
-    await this.clearCache();
+    await this.clearAllRelatedCaches();
 
     // Fetch and return created assignment
     return this.getBusAssignmentById(busAssignmentID);
@@ -225,7 +225,7 @@ export class BusAssignmentService {
       }
     }
 
-    await this.clearCache();
+    await this.clearAllRelatedCaches();
     return this.getBusAssignmentById(id);
   }
 
@@ -235,7 +235,7 @@ export class BusAssignmentService {
       data: { IsDeleted: true, UpdatedBy: actor },
     });
 
-    await this.clearCache();
+    await this.clearAllRelatedCaches();
     return { IsDeleted: true, UpdatedBy: actor };
   }
 

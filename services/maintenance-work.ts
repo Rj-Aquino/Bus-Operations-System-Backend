@@ -1,11 +1,42 @@
 import prisma from '@/client';
 import { MaintenanceStatus, MaintenancePriority } from '@prisma/client';
 import { fetchNewBuses } from '@/lib/fetchExternal';
-// import { delCache, CACHE_KEYS } from '@/lib/cache';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-// const CACHE_KEYS_TO_CLEAR = [CACHE_KEYS.MAINTENANCE_WORK ?? ''];
+// cache keys will be used by the service to clear relevant caches
 
 export class MaintenanceWorkService {
+  private readonly CACHE_KEYS_TO_CLEAR = [
+    // Status-only keys
+    CACHE_KEYS.MAINTENANCE_ALL ?? '',
+    CACHE_KEYS.MAINTENANCE_PENDING ?? '',
+    CACHE_KEYS.MAINTENANCE_INPROGRESS ?? '',
+    CACHE_KEYS.MAINTENANCE_COMPLETED ?? '',
+    CACHE_KEYS.MAINTENANCE_CANCELLED ?? '',
+    // Priority-only keys
+    CACHE_KEYS.MAINTENANCE_LOW ?? '',
+    CACHE_KEYS.MAINTENANCE_MEDIUM ?? '',
+    CACHE_KEYS.MAINTENANCE_HIGH ?? '',
+    CACHE_KEYS.MAINTENANCE_CRITICAL ?? '',
+    // Status + Priority keys
+    CACHE_KEYS.MAINTENANCE_PENDING_LOW ?? '',
+    CACHE_KEYS.MAINTENANCE_PENDING_MEDIUM ?? '',
+    CACHE_KEYS.MAINTENANCE_PENDING_HIGH ?? '',
+    CACHE_KEYS.MAINTENANCE_PENDING_CRITICAL ?? '',
+    CACHE_KEYS.MAINTENANCE_INPROGRESS_LOW ?? '',
+    CACHE_KEYS.MAINTENANCE_INPROGRESS_MEDIUM ?? '',
+    CACHE_KEYS.MAINTENANCE_INPROGRESS_HIGH ?? '',
+    CACHE_KEYS.MAINTENANCE_INPROGRESS_CRITICAL ?? '',
+    CACHE_KEYS.MAINTENANCE_COMPLETED_LOW ?? '',
+    CACHE_KEYS.MAINTENANCE_COMPLETED_MEDIUM ?? '',
+    CACHE_KEYS.MAINTENANCE_COMPLETED_HIGH ?? '',
+    CACHE_KEYS.MAINTENANCE_COMPLETED_CRITICAL ?? '',
+    CACHE_KEYS.MAINTENANCE_CANCELLED_LOW ?? '',
+    CACHE_KEYS.MAINTENANCE_CANCELLED_MEDIUM ?? '',
+    CACHE_KEYS.MAINTENANCE_CANCELLED_HIGH ?? '',
+    CACHE_KEYS.MAINTENANCE_CANCELLED_CRITICAL ?? '',
+  ];
+
   private async buildBusMap(): Promise<Record<string, any>> {
     try {
       const buses = await fetchNewBuses();
@@ -180,10 +211,11 @@ export class MaintenanceWorkService {
 
     // await this.clearCache();
 
+    await this.clearCache();
+
     return updatedWork;
   }
-
-//   private async clearCache(): Promise<void> {
-//     await Promise.all(CACHE_KEYS_TO_CLEAR.map(key => delCache(key)));
-//   }
+  private async clearCache(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
+  }
 }

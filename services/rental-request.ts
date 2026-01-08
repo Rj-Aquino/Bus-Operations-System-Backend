@@ -1,10 +1,29 @@
 import prisma from '@/client';
-import { RentalRequestStatus, BusOperationStatus, DamageReportStatus } from '@prisma/client';
+import { RentalRequestStatus, BusOperationStatus, DamageReportStatus, AssignmentType } from '@prisma/client';
 import { generateFormattedID } from '@/lib/idGenerator';
 import { fetchBuses, fetchNewBuses } from '@/lib/fetchExternal';
 import { delCache, CACHE_KEYS } from '@/lib/cache';
+import cloudinary from '@/lib/cloudinary';
+import { validateRequestLocations } from '@/services/bus-location-validation';
 
-const RENTAL_REQUESTS_CACHE_KEY = CACHE_KEYS.RENTAL_REQUESTS_ALL ?? '';
+const RENTAL_REQUESTS_CACHE_KEYS = [
+  CACHE_KEYS.RENTAL_REQUESTS_ALL,
+  CACHE_KEYS.RENTAL_REQUESTS_PENDING,
+  CACHE_KEYS.RENTAL_REQUESTS_APPROVED,
+  CACHE_KEYS.RENTAL_REQUESTS_REJECTED,
+  CACHE_KEYS.RENTAL_REQUESTS_COMPLETED,
+  CACHE_KEYS.DASHBOARD ?? '',
+  CACHE_KEYS.DAMAGE_REPORT_ALL ?? '',
+  CACHE_KEYS.DAMAGE_REPORT_PENDING ?? '',
+  CACHE_KEYS.DAMAGE_REPORT_ACCEPTED ?? '',
+  CACHE_KEYS.DAMAGE_REPORT_REJECTED ?? '',
+  CACHE_KEYS.DAMAGE_REPORT_NA ?? '',
+].filter(Boolean) as string[];
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
 
 export class RentalRequestService {
   private normalizeStatusInput(val?: string): RentalRequestStatus | undefined {
@@ -19,23 +38,91 @@ export class RentalRequestService {
     const normalized = this.normalizeStatusInput(statusParam);
     if (normalized) where.Status = normalized;
 
-    const includeClause: any = normalized === 'Approved' || normalized === 'Completed'
+    const rentalBusAssignmentSelect: any = normalized === 'Approved' || normalized === 'Completed'
       ? {
-          RentalBusAssignment: {
-            include: {
-              BusAssignment: {
-                include: { DamageReports: { orderBy: { CheckDate: 'desc' }, take: 1 } },
+          select: {
+            RentalBusAssignmentID: true,
+            BusAssignment: {
+              select: {
+                BusAssignmentID: true,
+                BusID: true,
+                AssignmentType: true,
+                Status: true,
+                Battery: true,
+                Lights: true,
+                Oil: true,
+                Water: true,
+                Brake: true,
+                Air: true,
+                Gas: true,
+                Engine: true,
+                TireCondition: true,
+                Self_Driver: true,
+                Self_Conductor: true,
+                IsDeleted: true,
+                DamageReports: {
+                  orderBy: { CheckDate: 'desc' as const },
+                  take: 1,
+                },
               },
-              RentalDrivers: { select: { RentalDriverID: true, DriverID: true, CreatedAt: true } },
+            },
+            RentalDrivers: {
+              select: { RentalDriverID: true, DriverID: true, CreatedAt: true },
             },
           },
         }
-      : { RentalBusAssignment: { include: { BusAssignment: true } } };
+      : {
+          select: {
+            RentalBusAssignmentID: true,
+            BusAssignment: {
+              select: {
+                BusAssignmentID: true,
+                BusID: true,
+                AssignmentType: true,
+                Status: true,
+              },
+            },
+          },
+        };
 
     const rentalRequests = await prisma.rentalRequest.findMany({
       where,
       orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
-      include: includeClause,
+      select: {
+        RentalRequestID: true,
+        RentalBusAssignmentID: true,
+        RouteName: true,
+        Pickuplatitude: true,
+        Pickuplongitude: true,
+        Dropofflatitude: true,
+        Dropofflongitude: true,
+        DistanceKM: true,
+        NumberOfPassengers: true,
+        RentalDate: true,
+        Duration: true,
+        SpecialRequirements: true,
+        Status: true,
+        CustomerName: true,
+        CustomerContact: true,
+        CustomerEmail: true,
+        IDType: true,
+        IDNumber: true,
+        HomeAddress: true,
+        IDImage: true,
+        TotalRentalAmount: true,
+        DownPaymentAmount: true,
+        BalanceAmount: true,
+        DownPaymentDate: true,
+        FullPaymentDate: true,
+        CancelledAtDate: true,
+        CancelledReason: true,
+        IsDeleted: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        CreatedBy: true,
+        UpdatedBy: true,
+        RentalBusAssignment: rentalBusAssignmentSelect,
+      },
     });
 
     // fetch bus data (new -> fallback)
@@ -56,6 +143,7 @@ export class RentalRequestService {
       const busInfo = busID ? busMap.get(busID) : undefined;
       const enriched = {
         ...rr,
+        IDImageUrl: getIDImageUrl(rr.IDImage),
         BusType: busInfo?.bus_type ?? null,
         PlateNumber: busInfo?.plate_number ?? null,
         SeatCapacity: busInfo?.seat_capacity ?? null,
@@ -72,28 +160,66 @@ export class RentalRequestService {
   async createRentalRequest(body: any, actor: string | null) {
     // minimal validation (caller should validate more)
     const {
-      PickupLocation, DropoffLocation, DistanceKM, TotalRentalAmount,
+      Pickuplatitude, Pickuplongitude, Dropofflatitude, Dropofflongitude,
+      DistanceKM, TotalRentalAmount,
       NumberOfPassengers, RentalDate, Duration, CustomerName,
       CustomerContact, BusID, RouteName, Status, SpecialRequirements,
+      IDType, IDNumber, HomeAddress, IDImage, CustomerEmail
     } = body ?? {};
 
-    if (!PickupLocation || !DropoffLocation || DistanceKM == null || TotalRentalAmount == null ||
-        NumberOfPassengers == null || !RentalDate || Duration == null || !CustomerName ||
-        !CustomerContact || !BusID || !RouteName) {
-      throw new Error('Missing required fields');
+    if (
+      !Pickuplatitude || !Pickuplongitude ||
+      !Dropofflatitude || !Dropofflongitude ||
+      DistanceKM == null || TotalRentalAmount == null ||
+      NumberOfPassengers == null || !RentalDate || Duration == null ||
+      !CustomerName || !CustomerContact || !CustomerEmail  || !BusID || !RouteName ||
+      !IDType || !IDNumber || !HomeAddress ||
+      !(IDImage instanceof File)
+    ) {
+      throw new Error('Missing or invalid required fields');
     }
 
     const parsedRentalDate = new Date(RentalDate);
     if (isNaN(parsedRentalDate.getTime())) throw new Error('Invalid RentalDate');
 
-    const normalizedStatus = this.normalizeStatusInput(Status) ?? 'Pending';
+    if (!isValidEmail(CustomerEmail)) throw new Error('Invalid CustomerEmail format');
+
+    // Validate location vicinity
+    const locationValidation = await validateRequestLocations(
+      Number(Pickuplatitude),
+      Number(Pickuplongitude),
+      Number(Dropofflatitude),
+      Number(Dropofflongitude)
+    );
+
+    // Determine final status based on location validation
+    let finalStatus: RentalRequestStatus;
+    let autoRejectReason: string | null = null;
+
+    if (!locationValidation.isValid) {
+      finalStatus = RentalRequestStatus.Rejected;
+      autoRejectReason = locationValidation.reasons.join('; ');
+    } else {
+      finalStatus = this.normalizeStatusInput(Status) ?? RentalRequestStatus.Pending;
+    }
 
     const baID = await generateFormattedID('BA');
     const rrID = await generateFormattedID('RR');
 
+    const downPaymentAmt = Number(body.DownPaymentAmount ?? null);
+    const downPaymentDate = body.DownPaymentDate ? new Date(body.DownPaymentDate) : null;
+    const fullPaymentDate = body.FullPaymentDate ? new Date(body.FullPaymentDate) : null;
+    const balanceAmt = !isNaN(downPaymentAmt) && TotalRentalAmount != null
+      ? Number(TotalRentalAmount) - downPaymentAmt
+      : null;
+
+    // Upload the ID image to Cloudinary and get public_id
+    const idImagePublicId = await uploadIDImageToCloudinary(IDImage);
+
     const created = await prisma.$transaction(async tx => {
+      // create BusAssignment with enum AssignmentType.Rental
       await tx.busAssignment.create({
-        data: { BusAssignmentID: baID, BusID: String(BusID), AssignmentType: 'Rental', CreatedBy: actor },
+        data: { BusAssignmentID: baID, BusID: String(BusID), AssignmentType: AssignmentType.Rental, IsDeleted: false, CreatedBy: actor },
       });
 
       await tx.rentalBusAssignment.create({
@@ -105,17 +231,32 @@ export class RentalRequestService {
           RentalRequestID: rrID,
           RentalBusAssignmentID: baID,
           RouteName: String(RouteName),
-          PickupLocation: String(PickupLocation),
-          DropoffLocation: String(DropoffLocation),
+          Pickuplatitude: String(Pickuplatitude),
+          Pickuplongitude: String(Pickuplongitude),
+          Dropofflatitude: String(Dropofflatitude),
+          Dropofflongitude: String(Dropofflongitude),
           DistanceKM: Number(DistanceKM),
           TotalRentalAmount: Number(TotalRentalAmount),
           NumberOfPassengers: Number(NumberOfPassengers),
           RentalDate: parsedRentalDate,
           Duration: Number(Duration),
           SpecialRequirements: SpecialRequirements ?? null,
-          Status: normalizedStatus,
+          Status: finalStatus,
+          IDType: String(IDType),
+          IDNumber: String(IDNumber),
+          HomeAddress: String(HomeAddress),
+          IDImage: idImagePublicId,
           CustomerName: String(CustomerName),
           CustomerContact: String(CustomerContact),
+          CustomerEmail: String(CustomerEmail),
+          DownPaymentAmount: !isNaN(downPaymentAmt) ? downPaymentAmt : null,
+          BalanceAmount: !isNaN(balanceAmt as number) ? balanceAmt : null,
+          DownPaymentDate: downPaymentDate ?? null,
+          FullPaymentDate: fullPaymentDate ?? null,
+          CancelledAtDate: null,
+          CancelledReason: null,
+          AutoRejectReason: autoRejectReason,
+          IsDeleted: false,
           CreatedBy: actor,
         },
         include: {
@@ -129,11 +270,11 @@ export class RentalRequestService {
     });
 
     // invalidate cache if used
-    await delCache(RENTAL_REQUESTS_CACHE_KEY);
+    await Promise.all(RENTAL_REQUESTS_CACHE_KEYS.map(k => delCache(k)));
     return created;
   }
 
-   async updateRentalRequest(RentalRequestID: string, body: any, actor: string | null) {
+  async updateRentalRequest(RentalRequestID: string, body: any, actor: string | null) {
     const current = await prisma.rentalRequest.findUnique({
       where: { RentalRequestID },
       include: {
@@ -200,38 +341,16 @@ export class RentalRequestService {
         if (isApprove) {
           if (!rba || !busAssignment) throw new Error('Cannot approve: no associated BusAssignment');
 
+          // Update provided fields and immediately mark request as Approved
           await tx.rentalRequest.update({
             where: { RentalRequestID },
-            data: { ...rentalRequestUpdates, UpdatedBy: actorId },
+            data: { ...rentalRequestUpdates, Status: RentalRequestStatus.Approved, UpdatedBy: actorId },
           });
 
-          const updatedRequest = await tx.rentalRequest.findUnique({
-            where: { RentalRequestID },
-            select: {
-              DownPaymentAmount: true,
-              BalanceAmount: true,
-              DownPaymentDate: true,
-              FullPaymentDate: true,
-            },
+          await tx.busAssignment.update({
+            where: { BusAssignmentID: busAssignment.BusAssignmentID },
+            data: { Status: BusOperationStatus.NotReady, UpdatedBy: actorId },
           });
-
-          const allPaymentsProvided =
-            updatedRequest?.DownPaymentAmount != null &&
-            updatedRequest?.BalanceAmount != null &&
-            updatedRequest?.DownPaymentDate != null &&
-            updatedRequest?.FullPaymentDate != null;
-
-          if (allPaymentsProvided) {
-            await tx.rentalRequest.update({
-              where: { RentalRequestID },
-              data: { Status: RentalRequestStatus.Approved, UpdatedBy: actorId },
-            });
-
-            await tx.busAssignment.update({
-              where: { BusAssignmentID: busAssignment.BusAssignmentID },
-              data: { Status: BusOperationStatus.NotReady, UpdatedBy: actorId },
-            });
-          }
         }
         // REJECT
         else if (isReject) {
@@ -404,7 +523,7 @@ export class RentalRequestService {
       return current;
     });
 
-    await delCache(RENTAL_REQUESTS_CACHE_KEY);
+    await Promise.all(RENTAL_REQUESTS_CACHE_KEYS.map(k => delCache(k)));
     return result;
   }
 
@@ -414,7 +533,39 @@ export class RentalRequestService {
       data: { IsDeleted: isDeleted, UpdatedBy: actor },
       select: { RentalRequestID: true, IsDeleted: true, UpdatedBy: true, UpdatedAt: true },
     });
-    await delCache(RENTAL_REQUESTS_CACHE_KEY);
+    await Promise.all(RENTAL_REQUESTS_CACHE_KEYS.map(k => delCache(k)));
     return updated;
   }
+}
+
+export async function uploadIDImageToCloudinary(file: File): Promise<string> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder: 'rental-ids',
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error || !result) {
+          return reject(error);
+        }
+        resolve(result.public_id);
+      }
+    ).end(buffer);
+  });
+}
+
+function getIDImageUrl(publicId?: string | null) {
+  if (!publicId) return null;
+
+  return cloudinary.url(publicId, {
+    secure: true,
+    transformation: [
+      { width: 800, crop: 'limit' },
+      { quality: 'auto' },
+      { fetch_format: 'auto' },
+    ],
+  });
 }

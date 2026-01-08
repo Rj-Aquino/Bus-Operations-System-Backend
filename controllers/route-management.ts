@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 import { RouteManagementService } from '@/services/route-management';
 
 const service = new RouteManagementService();
@@ -35,6 +36,7 @@ export class RouteManagementController {
     try {
       const body = await req.json();
       const created = await service.createRoute(body, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(created, { status: 201 });
     } catch (err: any) {
       console.error('POST_ROUTE_ERROR', err);
@@ -53,6 +55,7 @@ export class RouteManagementController {
       if (!RouteID) return NextResponse.json({ error: 'RouteID is required in the URL path.' }, { status: 400 });
       const body = await req.json();
       const updated = await service.updateRoute(RouteID, body, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(updated, { status: 200 });
     } catch (err) {
       console.error('PUT_ROUTE_ERROR', err);
@@ -70,10 +73,21 @@ export class RouteManagementController {
       const body = await req.json();
       if (typeof body.IsDeleted !== 'boolean') return NextResponse.json({ error: 'Invalid isDeleted value. It must be a boolean.' }, { status: 400 });
       const updated = await service.patchRouteIsDeleted(RouteID, body.IsDeleted, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(updated, { status: 200 });
     } catch (err) {
       console.error('PATCH_ROUTE_ERROR', err);
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to update route' }, { status: 400 });
     }
+  }
+
+  private readonly CACHE_KEYS_TO_INVALIDATE = [
+    CACHE_KEYS.ROUTES ?? '',
+    CACHE_KEYS.ROUTES_FULL ?? '',
+    CACHE_KEYS.DASHBOARD ?? '',
+  ];
+
+  private async invalidateCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
   }
 }

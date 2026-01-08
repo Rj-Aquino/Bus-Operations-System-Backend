@@ -7,6 +7,13 @@ import { delCache, CACHE_KEYS } from '@/lib/cache';
 // const CACHE_KEYS_TO_CLEAR = [CACHE_KEYS.DAMAGE_REPORTS ?? ''];
 
 export class DamageReportService {
+  private readonly CACHE_KEYS_TO_CLEAR = [
+    CACHE_KEYS.DAMAGE_REPORT_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_PENDING ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ACCEPTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_REJECTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_NA ?? '',
+  ];
   private async buildBusMap(): Promise<Record<string, any>> {
     try {
       const buses = await fetchNewBuses();
@@ -123,12 +130,12 @@ export class DamageReportService {
       }
     }
 
-    // await this.clearCache();
+    await this.clearCache();
 
     return updatedReport;
   }
 
-//   private async clearCache(): Promise<void> {
-//     await Promise.all(CACHE_KEYS_TO_CLEAR.map(key => delCache(key)));
-//   }
+  private async clearCache(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
+  }
 }

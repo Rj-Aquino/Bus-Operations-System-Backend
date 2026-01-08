@@ -1,31 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { DamageReportService } from '@/services/damage-report';
-import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS } from '@/lib/cache';
 
 export class DamageReportController {
   private service = new DamageReportService();
-//   private CACHE_KEY = CACHE_KEYS.DAMAGE_REPORTS ?? '';
+  private readonly CACHE_KEYS_TO_INVALIDATE = [
+    CACHE_KEYS.DAMAGE_REPORT_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_PENDING ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ACCEPTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_REJECTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_NA ?? '',
+  ];
 
   async handleGet(request: NextRequest) {
     try {
       const url = new URL(request.url);
       const filterStatus = url.searchParams.get('status');
 
-      // Build cache key with filter
-      //   const cacheKey = filterStatus ? `${this.CACHE_KEY}_${filterStatus}` : this.CACHE_KEY;
+      // Map status filter to proper cache key
+      let cacheKey = '';
+      if (filterStatus) {
+        const statusMap: Record<string, string | undefined> = {
+          Pending: CACHE_KEYS.DAMAGE_REPORT_PENDING,
+          Accepted: CACHE_KEYS.DAMAGE_REPORT_ACCEPTED,
+          Rejected: CACHE_KEYS.DAMAGE_REPORT_REJECTED,
+          NA: CACHE_KEYS.DAMAGE_REPORT_NA,
+        };
+        cacheKey = statusMap[filterStatus] ?? '';
+      } else {
+        cacheKey = CACHE_KEYS.DAMAGE_REPORT_ALL ?? '';
+      }
 
-    //   // Try cache
-    //   const cached = await getCache<any[]>(cacheKey);
-    //   if (cached) {
-    //     return NextResponse.json(cached, { status: 200 });
-    //   }
+      // Try cache
+      if (cacheKey) {
+        const cached = await getCache<any[]>(cacheKey);
+        if (cached) {
+          return NextResponse.json(cached, { status: 200 });
+        }
+      }
 
       // Fetch from service
       const result = await this.service.getDamageReports(filterStatus);
 
       // Cache result
-      //   await setCache(cacheKey, result);
+      if (cacheKey) await setCache(cacheKey, result);
 
       return NextResponse.json(result, { status: 200 });
     } catch (err) {
@@ -62,6 +81,7 @@ export class DamageReportController {
 
       const actor = user?.employeeId || null;
       const result = await this.service.updateDamageReportStatus(damageReportID, newStatus, actor);
+      await this.invalidateCaches();
 
       return NextResponse.json({ updated: result }, { status: 200 });
     } catch (err) {
@@ -69,5 +89,9 @@ export class DamageReportController {
       const msg = err instanceof Error ? err.message : 'Failed to update damage report';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+  }
+
+  private async invalidateCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
   }
 }

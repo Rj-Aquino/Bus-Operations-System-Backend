@@ -9,13 +9,6 @@ enum AllowedPaymentMethods {
 }
 
 const ALLOWED_PAYMENT_METHODS = Object.values(AllowedPaymentMethods);
-const CACHE_KEYS_TO_CLEAR = [
-  CACHE_KEYS.DASHBOARD ?? '',
-  CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '',
-  CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '',
-  CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '',
-  CACHE_KEYS.BUS_OPERATIONS_ALL ?? '',
-];
 
 type BusAssignmentUpdateData = Partial<{
   Status: BusOperationStatus;
@@ -45,6 +38,19 @@ export class BusOperationsService {
     'TireCondition',
     'Self_Driver',
     'Self_Conductor',
+  ];
+
+  private readonly CACHE_KEYS_TO_CLEAR = [
+    CACHE_KEYS.DASHBOARD ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_PENDING ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ACCEPTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_REJECTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_NA ?? '',
   ];
 
   private validatePaymentMethod(method: string): void {
@@ -85,7 +91,7 @@ export class BusOperationsService {
   }
 
   private async clearCache(): Promise<void> {
-    await Promise.all(CACHE_KEYS_TO_CLEAR.map(key => delCache(key)));
+    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
   }
 
   async updateBusAssignment(busAssignmentID: string, body: any, actor: string | null): Promise<any> {

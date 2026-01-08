@@ -1,6 +1,7 @@
 import { BusOperationStatus , PrismaClient, ToolSourceType, DamageReportStatus, RentalRequestStatus  } from '@prisma/client';
 import { generateFormattedID } from '../lib/idGenerator'
 import {clearAllCache} from '../lib/cache';
+import { email } from 'zod/v4';
 
 const prisma = new PrismaClient();
 
@@ -751,38 +752,57 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       id: await generateFormattedID('RR'),
       rentalBusAssignmentID: rentalIDs.rental1,
       routeName: 'QC → Makati',
-      pickupLat: 14.6760,
-      pickupLng: 121.0437,
-      dropoffLat: 14.5547,
-      dropoffLng: 121.0244,
+
+      pickupLat: '14.6760',
+      pickupLng: '121.0437',
+      dropoffLat: '14.5547',
+      dropoffLng: '121.0244',
+
       distanceKM: 12.5,
       rentalPrice: 3500.0,
       passengers: 20,
-      rentalDate: new Date('2025-04-20'),
+      rentalDate: new Date('2026-01-01'),
       durationDays: 1,
       requirements: 'Air conditioning required',
+
       customer: 'Juan Dela Cruz',
       contact: '09171234567',
+      email: 'juan.delacruz@example.com',
+
+      idType: 'Driver License',
+      idNumber: 'DL-123456789',
+      homeAddress: 'Quezon City, Philippines',
+      idImage: 'https://res.cloudinary.com/dt0hdz5y5/image/upload/v1767856416/drivers_licence_mn0khv.jpg',
+
       status: RentalRequestStatus.Approved,
       downPayment: 1000,
-      fullPaymentDate: new Date('2025-04-20'),
+      fullPaymentDate: new Date('2025-12-30'),
     },
     {
       id: await generateFormattedID('RR'),
       rentalBusAssignmentID: rentalIDs.rental2,
       routeName: 'Pasay → Tagaytay',
-      pickupLat: 14.5567,
-      pickupLng: 121.0244,
-      dropoffLat: 14.0961,
-      dropoffLng: 121.2400,
+
+      pickupLat: '14.5567',
+      pickupLng: '121.0244',
+      dropoffLat: '14.0961',
+      dropoffLng: '121.2400',
+
       distanceKM: 60.0,
       rentalPrice: 8500.0,
       passengers: 40,
-      rentalDate: new Date('2025-04-21'),
+      rentalDate: new Date('2026-01-7'),
       durationDays: 2,
       requirements: 'Reclining seats',
+
       customer: 'Maria Santos',
       contact: '09182345678',
+      email: 'maria.santos@example.com',
+      idType: 'Passport',
+      idNumber: 'P1234567',
+      homeAddress: 'Pasay City, Philippines',
+      idImage: 'https://res.cloudinary.com/dt0hdz5y5/image/upload/v1767856416/passport_x8vmcd.avif',
+
       status: RentalRequestStatus.Pending,
       downPayment: null,
       fullPaymentDate: null,
@@ -791,21 +811,31 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       id: await generateFormattedID('RR'),
       rentalBusAssignmentID: rentalIDs.rental3,
       routeName: 'Manila → Batangas Port',
-      pickupLat: 14.5995,
-      pickupLng: 120.9842,
-      dropoffLat: 13.7563,
-      dropoffLng: 121.0583,
+
+      pickupLat: '14.5995',
+      pickupLng: '120.9842',
+      dropoffLat: '13.7563',
+      dropoffLng: '121.0583',
+
       distanceKM: 100.0,
       rentalPrice: 12500.0,
       passengers: 30,
-      rentalDate: new Date('2025-04-22'),
+      rentalDate: new Date('2026-01-14'),
       durationDays: 1,
       requirements: null,
+
       customer: 'Pedro Reyes',
       contact: '09193456789',
+      email: 'pedro.reyes@example.com',
+
+      idType: 'UMID',
+      idNumber: 'UMID-99887766',
+      homeAddress: 'Manila, Philippines',
+      idImage: 'https://res.cloudinary.com/dt0hdz5y5/image/upload/v1767856415/UMID_uu38nl.jpg',
+
       status: RentalRequestStatus.Completed,
       downPayment: 5000,
-      fullPaymentDate: new Date('2025-04-22'),
+      fullPaymentDate: new Date('2026-01-07'),
     },
   ];
 
@@ -814,30 +844,46 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       data: {
         RentalRequestID: r.id,
         RentalBusAssignmentID: r.rentalBusAssignmentID,
+
         RouteName: r.routeName,
-        PickupLocation: `${r.pickupLat},${r.pickupLng}`, // store as "lat,lng" string if your field is string
-        DropoffLocation: `${r.dropoffLat},${r.dropoffLng}`,
+        Pickuplatitude: r.pickupLat,
+        Pickuplongitude: r.pickupLng,
+        Dropofflatitude: r.dropoffLat,
+        Dropofflongitude: r.dropoffLng,
+
         DistanceKM: r.distanceKM,
         NumberOfPassengers: r.passengers,
         RentalDate: r.rentalDate,
         Duration: r.durationDays,
+
         SpecialRequirements: r.requirements,
         Status: r.status,
+
         CustomerName: r.customer,
         CustomerContact: r.contact,
+        CustomerEmail: r.email,
+
+        IDType: r.idType,
+        IDNumber: r.idNumber,
+        HomeAddress: r.homeAddress,
+        IDImage: r.idImage,
+
         TotalRentalAmount: r.rentalPrice,
-        DownPaymentAmount: r.downPayment ?? null,
+        DownPaymentAmount: r.downPayment,
         BalanceAmount: r.downPayment ? r.rentalPrice - r.downPayment : null,
         DownPaymentDate: r.downPayment ? r.rentalDate : null,
-        FullPaymentDate: r.fullPaymentDate ?? null,
+        FullPaymentDate: r.fullPaymentDate,
+
         CancelledAtDate: null,
         CancelledReason: null,
+
         CreatedBy: 'OP-2024-00123',
+        UpdatedBy: null,
       },
     });
   }
 
-  console.log('✅ Rental requests seeded successfully with coordinates');
+  console.log('✅ Rental requests seeded successfully (new schema)');
 }
 
 async function seedDamageReports(busAssignments: { 

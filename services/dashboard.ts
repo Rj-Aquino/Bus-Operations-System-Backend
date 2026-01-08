@@ -1,10 +1,9 @@
 import prisma from '@/client';
-import { BusOperationStatus } from '@prisma/client';
+import { BusOperationStatus, AssignmentType, RentalRequestStatus } from '@prisma/client';
 import { delCache, CACHE_KEYS } from '@/lib/cache';
 
-const CACHE_KEYS_TO_CLEAR = [CACHE_KEYS.DASHBOARD ?? ''];
-
 export class DashboardService {
+  private readonly CACHE_KEYS_TO_CLEAR = [CACHE_KEYS.DASHBOARD ?? ''];
   private getMonthRange(month: number, year: number): { start: Date; end: Date } {
     const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
@@ -21,7 +20,7 @@ export class DashboardService {
     return { month: prevMonth, year: prevYear };
   }
 
-  private buildDailyEarnings(trips: any[], daysInMonth: number): number[] {
+  private buildDailyEarnings(trips: any[], rentals: any[], daysInMonth: number): number[] {
     const dailyEarnings = Array(daysInMonth).fill(0);
 
     for (const trip of trips) {
@@ -31,18 +30,19 @@ export class DashboardService {
       }
     }
 
+    for (const rental of rentals) {
+      if (rental.RentalDate && typeof rental.TotalRentalAmount === 'number') {
+        const day = new Date(rental.RentalDate).getDate();
+        dailyEarnings[day - 1] += rental.TotalRentalAmount;
+      }
+    }
+
     return dailyEarnings;
   }
 
   async getEarningsCurrentMonth(): Promise<{
-    month: number;
-    year: number;
-    data: number[];
-    previous: {
-      month: number;
-      year: number;
-      data: number[];
-    };
+    operations: { month: number; year: number; data: number[]; previous: { month: number; year: number; data: number[] } };
+    rentals: { month: number; year: number; data: number[]; previous: { month: number; year: number; data: number[] } };
   }> {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -65,7 +65,27 @@ export class DashboardService {
       },
     });
 
-    const dailyEarnings = this.buildDailyEarnings(busTrips, daysInMonth);
+    const rentals = await prisma.rentalRequest.findMany({
+      where: {
+        RentalDate: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+        IsDeleted: false,
+        // include completed and paid rentals if needed - using all for now
+      },
+      select: {
+        RentalDate: true,
+        TotalRentalAmount: true,
+        RouteName: true,
+      },
+    });
+
+    // operations (bus trips) earnings
+    const operationsDaily = this.buildDailyEarnings(busTrips, [], daysInMonth);
+
+    // rentals earnings
+    const rentalsDaily = this.buildDailyEarnings([], rentals, daysInMonth);
 
     // Previous month
     const { month: prevMonth, year: prevYear } = this.getPreviousMonthYear(month, year);
@@ -85,22 +105,41 @@ export class DashboardService {
       },
     });
 
-    const prevDailyEarnings = this.buildDailyEarnings(prevBusTrips, daysInPrevMonth);
+    const prevRentals = await prisma.rentalRequest.findMany({
+      where: {
+        RentalDate: {
+          gte: startOfPrevMonth,
+          lte: endOfPrevMonth,
+        },
+        IsDeleted: false,
+      },
+      select: {
+        RentalDate: true,
+        TotalRentalAmount: true,
+      },
+    });
+
+    const prevOperationsDaily = this.buildDailyEarnings(prevBusTrips, [], daysInPrevMonth);
+    const prevRentalsDaily = this.buildDailyEarnings([], prevRentals, daysInPrevMonth);
 
     return {
-      month,
-      year,
-      data: dailyEarnings,
-      previous: {
-        month: prevMonth,
-        year: prevYear,
-        data: prevDailyEarnings,
+      operations: {
+        month,
+        year,
+        data: operationsDaily,
+        previous: { month: prevMonth, year: prevYear, data: prevOperationsDaily },
+      },
+      rentals: {
+        month,
+        year,
+        data: rentalsDaily,
+        previous: { month: prevMonth, year: prevYear, data: prevRentalsDaily },
       },
     };
   }
 
   async getBusStatus(): Promise<Record<string, number>> {
-    const statuses = [
+    const baseStatuses: any[] = [
       BusOperationStatus.NotStarted,
       BusOperationStatus.NotReady,
       BusOperationStatus.InOperation,
@@ -109,12 +148,38 @@ export class DashboardService {
     const statusCounts: Record<string, number> = {};
 
     await Promise.all(
-      statuses.map(async status => {
-        statusCounts[status] = await prisma.busAssignment.count({
-          where: { Status: status, IsDeleted: false },
-        });
+      baseStatuses.map(async status => {
+        const statusKey = String(status);
+        if (status === BusOperationStatus.InOperation) {
+          // Count only regular (non-rental) assignments in InOperation
+          statusCounts[statusKey] = await prisma.busAssignment.count({
+            where: {
+              Status: BusOperationStatus.InOperation,
+              IsDeleted: false,
+              AssignmentType: AssignmentType.Regular,
+            },
+          });
+        } else {
+          statusCounts[statusKey] = await prisma.busAssignment.count({ where: { Status: status as any, IsDeleted: false } });
+        }
       })
     );
+
+    // Count InRental = BusAssignment in InOperation AND has at least one Approved RentalRequest
+    statusCounts['InRental'] = await prisma.busAssignment.count({
+      where: {
+        Status: BusOperationStatus.InOperation,
+        IsDeleted: false,
+        RentalBusAssignment: {
+          RentalRequests: {
+            some: {
+              Status: RentalRequestStatus.Approved,
+              IsDeleted: false,
+            },
+          },
+        },
+      },
+    });
 
     return statusCounts;
   }
@@ -136,7 +201,7 @@ export class DashboardService {
       topRoutes[route.RouteName] = 0;
     }
 
-    // Aggregate earnings per route for the current month
+    // Aggregate earnings per route for the current month - bus trips
     const tripsWithRoute = await prisma.busTrip.findMany({
       where: {
         DispatchedAt: {
@@ -165,7 +230,29 @@ export class DashboardService {
     for (const trip of tripsWithRoute) {
       const routeName = trip.regularBusAssignment?.BusAssignment?.Route?.RouteName;
       if (routeName && typeof trip.Sales === 'number') {
-        topRoutes[routeName] += trip.Sales;
+        topRoutes[routeName] = (topRoutes[routeName] || 0) + trip.Sales;
+      }
+    }
+
+    // Aggregate rental earnings by RouteName for the current month
+    const rentalEarnings = await prisma.rentalRequest.findMany({
+      where: {
+        RentalDate: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+        IsDeleted: false,
+      },
+      select: {
+        RouteName: true,
+        TotalRentalAmount: true,
+      },
+    });
+
+    for (const rent of rentalEarnings) {
+      const routeName = rent.RouteName;
+      if (routeName && typeof rent.TotalRentalAmount === 'number') {
+        topRoutes[routeName] = (topRoutes[routeName] || 0) + rent.TotalRentalAmount;
       }
     }
 
@@ -187,6 +274,6 @@ export class DashboardService {
   }
 
   private async clearCache(): Promise<void> {
-    await Promise.all(CACHE_KEYS_TO_CLEAR.map(key => delCache(key)));
+    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
   }
 }

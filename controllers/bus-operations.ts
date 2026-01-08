@@ -3,10 +3,22 @@ import { authenticateRequest } from '@/lib/auth';
 import { BusOperationsService } from '@/services/bus-operations';
 import prisma from '@/client';
 import { BusOperationStatus } from '@prisma/client';
-import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS } from '@/lib/cache';
 
 export class BusOperationsController {
   private service = new BusOperationsService();
+  private readonly CACHE_KEYS_TO_INVALIDATE = [
+    CACHE_KEYS.DASHBOARD ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '',
+    CACHE_KEYS.BUS_OPERATIONS_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ALL ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_PENDING ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_ACCEPTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_REJECTED ?? '',
+    CACHE_KEYS.DAMAGE_REPORT_NA ?? '',
+  ];
 
   async handleGet(request: NextRequest) {
     const { user, error, status } = await authenticateRequest(request);
@@ -56,6 +68,7 @@ export class BusOperationsController {
       const actor = user?.employeeId || null;
 
       const result = await this.service.updateBusAssignment(busAssignmentID, body, actor);
+      await this.invalidateCaches();
       return NextResponse.json(this.applyAuditLogicToRecord(result), { status: 200 });
     } catch (err) {
       console.error('UPDATE_BUS_OPERATIONS_ERROR', err);
@@ -190,6 +203,10 @@ export class BusOperationsController {
         LatestDamageReport: latestDamageReport,
       };
     });
+  }
+
+  private async invalidateCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
   }
 
   private applyAuditLogic(records: any[]): any[] {

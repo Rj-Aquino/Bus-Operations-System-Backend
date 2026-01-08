@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
 import { DashboardService } from '@/services/dashboard';
-import { getCache, setCache, CACHE_KEYS } from '@/lib/cache';
+import { getCache, setCache, delCache, CACHE_KEYS } from '@/lib/cache';
 
 export class DashboardController {
   private service = new DashboardService();
+  private readonly CACHE_KEYS_TO_INVALIDATE = [CACHE_KEYS.DASHBOARD ?? ''];
   private CACHE_KEY = CACHE_KEYS.DASHBOARD ?? '';
 
   async handleGet(request: NextRequest) {
@@ -32,5 +33,9 @@ export class DashboardController {
       const msg = err instanceof Error ? err.message : 'Failed to fetch dashboard data';
       return NextResponse.json({ error: msg }, { status: 500 });
     }
+  }
+
+  private async invalidateCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
   }
 }

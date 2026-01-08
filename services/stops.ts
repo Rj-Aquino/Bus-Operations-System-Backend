@@ -3,6 +3,9 @@ import { delCache, getCache, setCache, CACHE_KEYS } from '@/lib/cache';
 import { generateFormattedID } from '@/lib/idGenerator';
 
 const STOPS_CACHE_KEY = CACHE_KEYS.STOPS_LIST ?? '';
+const ROUTES_CACHE_KEY = CACHE_KEYS.ROUTES ?? '';
+const ROUTES_CACHE_KEY_FULL = CACHE_KEYS.ROUTES_FULL ?? '';
+const DASHBOARD_CACHE_KEY = CACHE_KEYS.DASHBOARD ?? '';
 
 export class StopsService {
   private applyUpdatedAtLogic<T extends { CreatedAt?: Date | string | null; UpdatedAt?: Date | string | null; UpdatedBy?: any }>(items: T[]) {
@@ -118,6 +121,9 @@ export class StopsService {
     });
 
     await delCache(STOPS_CACHE_KEY);
+    await delCache(ROUTES_CACHE_KEY);
+    await delCache(ROUTES_CACHE_KEY_FULL);
+    await delCache(DASHBOARD_CACHE_KEY);
     return this.applyUpdatedAtLogic([updated])[0];
   }
 }

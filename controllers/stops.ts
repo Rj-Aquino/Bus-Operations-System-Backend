@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
+import { delCache, CACHE_KEYS } from '@/lib/cache';
 import { StopsService } from '@/services/stops';
 
 const service = new StopsService();
@@ -29,6 +30,7 @@ export class StopsController {
 
       // generate ID if you rely on generator in route currently
       const created = await service.createStop({ StopName, latitude, longitude }, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(created, { status: 201 });
     } catch (err) {
       console.error('POST_STOPS_ERROR', err);
@@ -46,6 +48,7 @@ export class StopsController {
 
       const body = await req.json();
       const updated = await service.updateStop(StopID, body, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(updated, { status: 200 });
     } catch (err) {
       console.error('PUT_STOP_ERROR', err);
@@ -65,10 +68,22 @@ export class StopsController {
       if (typeof body.IsDeleted !== 'boolean') return NextResponse.json({ error: '`IsDeleted` must be a boolean.' }, { status: 400 });
 
       const updated = await service.patchStopIsDeleted(StopID, body.IsDeleted, user?.employeeId || null);
+      await this.invalidateCaches();
       return NextResponse.json(updated, { status: 200 });
     } catch (err) {
       console.error('PATCH_STOP_ERROR', err);
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to update stop' }, { status: 400 });
     }
+  }
+
+  private readonly CACHE_KEYS_TO_INVALIDATE = [
+    CACHE_KEYS.STOPS_LIST ?? '',
+    CACHE_KEYS.ROUTES ?? '',
+    CACHE_KEYS.ROUTES_FULL ?? '',
+    CACHE_KEYS.DASHBOARD ?? '',
+  ];
+
+  private async invalidateCaches(): Promise<void> {
+    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
   }
 }

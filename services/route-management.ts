@@ -4,6 +4,7 @@ import { delCache, setCache, getCache, CACHE_KEYS } from '@/lib/cache';
 
 const ROUTES_CACHE_KEY = CACHE_KEYS.ROUTES ?? '';
 const ROUTES_CACHE_KEY_FULL = CACHE_KEYS.ROUTES_FULL ?? '';
+const DASHBOARD_CACHE_KEY = CACHE_KEYS.DASHBOARD ?? '';
 
 type RouteStopInput = {
   StopID: string | { StopID: string };
@@ -81,7 +82,7 @@ export class RouteManagementService {
     await Promise.all([
       delCache(ROUTES_CACHE_KEY),
       delCache(ROUTES_CACHE_KEY_FULL),
-      delCache(CACHE_KEYS.DASHBOARD ?? ''),
+      delCache(DASHBOARD_CACHE_KEY),
     ]);
   }
 
