@@ -187,6 +187,7 @@ model BusTrip {
 
   regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
   TicketBusTrips TicketBusTrip[]
+  DamageReports DamageReport[]
 
   LatestForAssignment RegularBusAssignment? @relation("LatestBusTrip")
 
@@ -338,8 +339,13 @@ model RentalRequest {
 
 model DamageReport {
   DamageReportID         String   @id
-  RentalRequestID        String
-  RentalBusAssignmentID  String
+  
+  // For Rental Operations (optional - null for regular ops)
+  RentalRequestID        String?
+  RentalBusAssignmentID  String?
+
+  // For Regular Bus Operations (optional - null for rentals)
+  BusTripID              String?
 
   // Vehicle condition checks (true = OK/no damage, false = damaged/issue found)
   Battery                Boolean  @default(false)
@@ -362,8 +368,9 @@ model DamageReport {
   Status                 DamageReportStatus @default(NA)
 
   // Relations
-  RentalRequest          RentalRequest @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
-  RentalBusAssignment    RentalBusAssignment @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID], onDelete: Cascade)
+  RentalRequest          RentalRequest? @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
+  RentalBusAssignment    RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID], onDelete: Cascade)
+  BusTrip                BusTrip? @relation(fields: [BusTripID], references: [BusTripID], onDelete: Cascade)
   MaintenanceWork        MaintenanceWork?
 
   CreatedAt              DateTime @default(now())

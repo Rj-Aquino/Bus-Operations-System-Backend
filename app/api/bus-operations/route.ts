@@ -127,6 +127,23 @@ const getHandler = async (request: NextRequest) => {
                     },
                   },
                 },
+                DamageReports: {
+                  select: {
+                    DamageReportID: true,
+                    Status: true,
+                    CheckDate: true,
+                    Note: true,
+                    Battery: true,
+                    Lights: true,
+                    Oil: true,
+                    Water: true,
+                    Brake: true,
+                    Air: true,
+                    Gas: true,
+                    Engine: true,
+                    TireCondition: true,
+                  },
+                },
               },
             },
             QuotaPolicies: {

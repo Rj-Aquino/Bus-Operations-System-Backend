@@ -979,7 +979,7 @@ async function seedMaintenanceWorks() {
         MaintenanceWorkID: await generateFormattedID('MW'),
         WorkNo: workNo,
         DamageReportID: damageReport.DamageReportID,
-        BusID: damageReport.RentalBusAssignment.BusAssignment.BusID,
+        BusID: damageReport.RentalBusAssignment?.BusAssignment?.BusID ?? 'BUS-00001',
         WorkTitle: workTitles[titleIndex],
         WorkNotes: workDescriptions[titleIndex],
         DueDate: dueDate,
@@ -1042,7 +1042,7 @@ async function seedMaintenanceWorksWithoutDetails() {
         MaintenanceWorkID: await generateFormattedID('MW'),
         WorkNo: workNo,
         DamageReportID: damageReport.DamageReportID,
-        BusID: damageReport.RentalBusAssignment.BusAssignment.BusID,
+        BusID: damageReport.RentalBusAssignment?.BusAssignment?.BusID ?? 'BUS-00001',
         Status: 'Pending',  // Default status
         Priority: 'Medium',  // Default priority
         // All optional fields are omitted (null):
