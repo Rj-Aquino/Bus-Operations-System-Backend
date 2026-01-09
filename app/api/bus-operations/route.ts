@@ -7,6 +7,22 @@ import { getCache, setCache, CACHE_KEYS} from '@/lib/cache';
 
 const BUS_OPERATIONS_CACHE_KEY = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
 
+// Map status to the correct predefined cache key
+function getCacheKeyForStatus(statusParam: string | null): string {
+  if (!statusParam) return BUS_OPERATIONS_CACHE_KEY;
+  
+  switch (statusParam) {
+    case 'NotReady':
+      return CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? `${BUS_OPERATIONS_CACHE_KEY}_NotReady`;
+    case 'NotStarted':
+      return CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? `${BUS_OPERATIONS_CACHE_KEY}_NotStarted`;
+    case 'InOperation':
+      return CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? `${BUS_OPERATIONS_CACHE_KEY}_InOperation`;
+    default:
+      return `${BUS_OPERATIONS_CACHE_KEY}_${statusParam}`;
+  }
+}
+
 const getHandler = async (request: NextRequest) => {
   const { user, error, status } = await authenticateRequest(request);
   if (error) {
@@ -16,9 +32,7 @@ const getHandler = async (request: NextRequest) => {
   // Use the status query param as part of the cache key for filtering
   const url = new URL(request.url);
   const statusParam = url.searchParams.get('status');
-  const cacheKey = statusParam
-    ? `${BUS_OPERATIONS_CACHE_KEY}_${statusParam}`
-    : BUS_OPERATIONS_CACHE_KEY;
+  const cacheKey = getCacheKeyForStatus(statusParam);
 
   // Try cache first
   const cached = await getCache<any[]>(cacheKey);

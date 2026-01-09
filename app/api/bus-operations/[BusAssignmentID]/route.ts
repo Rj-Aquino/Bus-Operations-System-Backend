@@ -433,11 +433,18 @@ const putHandler = async (request: NextRequest) => {
     }
 
     const updatedFullRecord = await fetchFullRecord(BusAssignmentID);
+    
+    // Clear all bus operations cache keys (including status-filtered variations)
     await delCache(CACHE_KEYS.DASHBOARD ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? '');
     await delCache(CACHE_KEYS.BUS_OPERATIONS_ALL ?? '');
+    // Also clear the dynamically constructed cache keys used by GET
+    const baseKey = CACHE_KEYS.BUS_OPERATIONS_ALL ?? '';
+    await delCache(`${baseKey}_NotReady`);
+    await delCache(`${baseKey}_NotStarted`);
+    await delCache(`${baseKey}_InOperation`);
 
     if (body.ResetCompleted) {
       const resetRecord = await resetAssignment(BusAssignmentID, busAssignmentFields, user);
