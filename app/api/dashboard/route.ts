@@ -13,11 +13,12 @@ const getDashboardHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
-  // Try cache first
-  const cached = await getCache(DASHBOARD_CACHE_KEY);
-  if (cached) {
-    return NextResponse.json(cached, { status: 200 });
-  }
+  try {
+    // Try cache first
+    const cached = await getCache(DASHBOARD_CACHE_KEY);
+    if (cached) {
+      return NextResponse.json(cached, { status: 200 });
+    }
 
   // Get current and previous month/year
   const now = new Date();
@@ -166,6 +167,13 @@ const getDashboardHandler = async (request: NextRequest) => {
   await setCache(DASHBOARD_CACHE_KEY, responseData);
 
   return NextResponse.json(responseData);
+  } catch (error) {
+    console.error('DASHBOARD_ERROR:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to fetch dashboard data' },
+      { status: 500 }
+    );
+  }
 };
 
 export const GET = withCors(getDashboardHandler);
