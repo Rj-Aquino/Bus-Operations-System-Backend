@@ -13,20 +13,12 @@ const getHandler = async (request: NextRequest) => {
     return NextResponse.json({ error }, { status });
   }
 
-  // Use the status query param to select the appropriate cache key
+  // Use the status query param as part of the cache key for filtering
   const url = new URL(request.url);
   const statusParam = url.searchParams.get('status');
-  
-  let cacheKey = BUS_OPERATIONS_CACHE_KEY;
-  if (statusParam === 'NotReady') {
-    cacheKey = CACHE_KEYS.BUS_OPERATIONS_NOTREADY ?? BUS_OPERATIONS_CACHE_KEY;
-  } else if (statusParam === 'NotStarted') {
-    cacheKey = CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED ?? BUS_OPERATIONS_CACHE_KEY;
-  } else if (statusParam === 'InOperation') {
-    cacheKey = CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? BUS_OPERATIONS_CACHE_KEY;
-  } else if (!statusParam) {
-    cacheKey = CACHE_KEYS.BUS_OPERATIONS_ALL ?? BUS_OPERATIONS_CACHE_KEY;
-  }
+  const cacheKey = statusParam
+    ? `${BUS_OPERATIONS_CACHE_KEY}_${statusParam}`
+    : BUS_OPERATIONS_CACHE_KEY;
 
   // Try cache first
   const cached = await getCache<any[]>(cacheKey);
