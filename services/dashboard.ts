@@ -4,9 +4,10 @@ import { delCache, CACHE_KEYS } from '@/lib/cache';
 
 export class DashboardService {
   private readonly CACHE_KEYS_TO_CLEAR = [CACHE_KEYS.DASHBOARD ?? ''];
+
   private getMonthRange(month: number, year: number): { start: Date; end: Date } {
-    const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const end = new Date(year, month, 0, 23, 59, 59, 999);
+    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
     return { start, end };
   }
 
@@ -20,19 +21,23 @@ export class DashboardService {
     return { month: prevMonth, year: prevYear };
   }
 
-  private buildDailyEarnings(trips: any[], rentals: any[], daysInMonth: number): number[] {
+  private buildDailyEarnings(
+    trips: { DispatchedAt: Date | null; Sales: number | null }[],
+    rentals: { RentalDate: Date | null; TotalRentalAmount: number | null }[],
+    daysInMonth: number
+  ): number[] {
     const dailyEarnings = Array(daysInMonth).fill(0);
 
     for (const trip of trips) {
-      if (trip.DispatchedAt && typeof trip.Sales === 'number') {
-        const day = trip.DispatchedAt.getDate();
+      if (trip.DispatchedAt != null && trip.Sales != null) {
+        const day = trip.DispatchedAt.getUTCDate();
         dailyEarnings[day - 1] += trip.Sales;
       }
     }
 
     for (const rental of rentals) {
-      if (rental.RentalDate && typeof rental.TotalRentalAmount === 'number') {
-        const day = new Date(rental.RentalDate).getDate();
+      if (rental.RentalDate != null && rental.TotalRentalAmount != null) {
+        const day = rental.RentalDate.getUTCDate();
         dailyEarnings[day - 1] += rental.TotalRentalAmount;
       }
     }
@@ -50,73 +55,44 @@ export class DashboardService {
 
     // Current month
     const { start: startOfMonth, end: endOfMonth } = this.getMonthRange(month, year);
-    const daysInMonth = new Date(year, month, 0).getDate();
+    const daysInMonth = new Date(year, month, 0).getUTCDate();
 
+    // Fetch current month bus trips
     const busTrips = await prisma.busTrip.findMany({
-      where: {
-        DispatchedAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
-      select: {
-        DispatchedAt: true,
-        Sales: true,
-      },
+      where: { DispatchedAt: { gte: startOfMonth, lte: endOfMonth } },
+      select: { DispatchedAt: true, Sales: true },
     });
 
+    // Fetch current month rentals (only Approved or Completed)
     const rentals = await prisma.rentalRequest.findMany({
       where: {
-        RentalDate: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
+        RentalDate: { gte: startOfMonth, lte: endOfMonth },
         IsDeleted: false,
-        // include completed and paid rentals if needed - using all for now
+        Status: { in: [RentalRequestStatus.Approved, RentalRequestStatus.Completed] },
       },
-      select: {
-        RentalDate: true,
-        TotalRentalAmount: true,
-        RouteName: true,
-      },
+      select: { RentalDate: true, TotalRentalAmount: true },
     });
 
-    // operations (bus trips) earnings
     const operationsDaily = this.buildDailyEarnings(busTrips, [], daysInMonth);
-
-    // rentals earnings
     const rentalsDaily = this.buildDailyEarnings([], rentals, daysInMonth);
 
     // Previous month
     const { month: prevMonth, year: prevYear } = this.getPreviousMonthYear(month, year);
     const { start: startOfPrevMonth, end: endOfPrevMonth } = this.getMonthRange(prevMonth, prevYear);
-    const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+    const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getUTCDate();
 
     const prevBusTrips = await prisma.busTrip.findMany({
-      where: {
-        DispatchedAt: {
-          gte: startOfPrevMonth,
-          lte: endOfPrevMonth,
-        },
-      },
-      select: {
-        DispatchedAt: true,
-        Sales: true,
-      },
+      where: { DispatchedAt: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+      select: { DispatchedAt: true, Sales: true },
     });
 
     const prevRentals = await prisma.rentalRequest.findMany({
       where: {
-        RentalDate: {
-          gte: startOfPrevMonth,
-          lte: endOfPrevMonth,
-        },
+        RentalDate: { gte: startOfPrevMonth, lte: endOfPrevMonth },
         IsDeleted: false,
+        Status: { in: [RentalRequestStatus.Approved, RentalRequestStatus.Completed] },
       },
-      select: {
-        RentalDate: true,
-        TotalRentalAmount: true,
-      },
+      select: { RentalDate: true, TotalRentalAmount: true },
     });
 
     const prevOperationsDaily = this.buildDailyEarnings(prevBusTrips, [], daysInPrevMonth);
@@ -242,6 +218,7 @@ export class DashboardService {
           lte: endOfMonth,
         },
         IsDeleted: false,
+        Status: { in: [RentalRequestStatus.Approved, RentalRequestStatus.Completed] }, // <-- filter here
       },
       select: {
         RouteName: true,

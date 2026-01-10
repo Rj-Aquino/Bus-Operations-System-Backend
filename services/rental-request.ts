@@ -116,6 +116,7 @@ export class RentalRequestService {
         FullPaymentDate: true,
         CancelledAtDate: true,
         CancelledReason: true,
+        AutoRejectReason: true,
         IsDeleted: true,
         CreatedAt: true,
         UpdatedAt: true,
@@ -158,22 +159,50 @@ export class RentalRequestService {
   }
 
   async createRentalRequest(body: any, actor: string | null) {
-    // minimal validation (caller should validate more)
+    // Extract fields - handle both regular object and FormData
+    let data: any;
+    
+    // Check if body has FormData methods
+    if (typeof body.get === 'function') {
+      // It's FormData - convert to object
+      data = {};
+      const formDataKeys = [
+        'CustomerName', 'CustomerContact', 'CustomerEmail', 'CustomerAddress',
+        'IDType', 'IDNumber', 'IDImage', 'PickupLocation', 'DropoffLocation',
+        'RouteName', 'NumberOfPassengers', 'RentalDate', 'Duration', 'DistanceKM',
+        'TotalRentalAmount', 'BusID', 'SpecialRequirements',
+        'Pickuplatitude', 'Pickuplongitude', 'Dropofflatitude', 'Dropofflongitude',
+        'DownPaymentAmount', 'DownPaymentDate', 'FullPaymentDate', 'Status'
+      ];
+      
+      for (const key of formDataKeys) {
+        const value = body.get(key);
+        if (value !== null) {
+          data[key] = value;
+        }
+      }
+    } else {
+      // It's a regular object
+      data = body;
+    }
+
     const {
       Pickuplatitude, Pickuplongitude, Dropofflatitude, Dropofflongitude,
-      DistanceKM, TotalRentalAmount,
-      NumberOfPassengers, RentalDate, Duration, CustomerName,
-      CustomerContact, BusID, RouteName, Status, SpecialRequirements,
-      IDType, IDNumber, HomeAddress, IDImage, CustomerEmail
-    } = body ?? {};
+      DistanceKM, TotalRentalAmount, NumberOfPassengers, RentalDate, Duration,
+      CustomerName, CustomerContact, BusID, RouteName, Status, SpecialRequirements,
+      IDType, IDNumber, HomeAddress, CustomerAddress, IDImage, CustomerEmail,
+      PickupLocation, DropoffLocation
+    } = data;
 
+    // Validation
     if (
       !Pickuplatitude || !Pickuplongitude ||
       !Dropofflatitude || !Dropofflongitude ||
       DistanceKM == null || TotalRentalAmount == null ||
       NumberOfPassengers == null || !RentalDate || Duration == null ||
-      !CustomerName || !CustomerContact || !CustomerEmail  || !BusID || !RouteName ||
-      !IDType || !IDNumber || !HomeAddress ||
+      !CustomerName || !CustomerContact || !CustomerEmail || !BusID ||
+      !RouteName || !PickupLocation || !DropoffLocation ||
+      !IDType || !IDNumber || !(HomeAddress || CustomerAddress) ||
       !(IDImage instanceof File)
     ) {
       throw new Error('Missing or invalid required fields');
@@ -198,7 +227,7 @@ export class RentalRequestService {
 
     if (!locationValidation.isValid) {
       finalStatus = RentalRequestStatus.Rejected;
-      autoRejectReason = locationValidation.reasons.join('; ');
+      autoRejectReason = `Auto-Rejected (Outside Vicinity): ${locationValidation.reasons.join('; ')}`;
     } else {
       finalStatus = this.normalizeStatusInput(Status) ?? RentalRequestStatus.Pending;
     }
@@ -206,9 +235,9 @@ export class RentalRequestService {
     const baID = await generateFormattedID('BA');
     const rrID = await generateFormattedID('RR');
 
-    const downPaymentAmt = Number(body.DownPaymentAmount ?? null);
-    const downPaymentDate = body.DownPaymentDate ? new Date(body.DownPaymentDate) : null;
-    const fullPaymentDate = body.FullPaymentDate ? new Date(body.FullPaymentDate) : null;
+    const downPaymentAmt = Number(data.DownPaymentAmount ?? null);
+    const downPaymentDate = data.DownPaymentDate ? new Date(data.DownPaymentDate) : null;
+    const fullPaymentDate = data.FullPaymentDate ? new Date(data.FullPaymentDate) : null;
     const balanceAmt = !isNaN(downPaymentAmt) && TotalRentalAmount != null
       ? Number(TotalRentalAmount) - downPaymentAmt
       : null;
@@ -219,7 +248,13 @@ export class RentalRequestService {
     const created = await prisma.$transaction(async tx => {
       // create BusAssignment with enum AssignmentType.Rental
       await tx.busAssignment.create({
-        data: { BusAssignmentID: baID, BusID: String(BusID), AssignmentType: AssignmentType.Rental, IsDeleted: false, CreatedBy: actor },
+        data: { 
+          BusAssignmentID: baID, 
+          BusID: String(BusID), 
+          AssignmentType: AssignmentType.Rental, 
+          IsDeleted: false, 
+          CreatedBy: actor 
+        },
       });
 
       await tx.rentalBusAssignment.create({
@@ -244,7 +279,7 @@ export class RentalRequestService {
           Status: finalStatus,
           IDType: String(IDType),
           IDNumber: String(IDNumber),
-          HomeAddress: String(HomeAddress),
+          HomeAddress: String(HomeAddress || CustomerAddress),
           IDImage: idImagePublicId,
           CustomerName: String(CustomerName),
           CustomerContact: String(CustomerContact),
@@ -261,7 +296,16 @@ export class RentalRequestService {
         },
         include: {
           RentalBusAssignment: {
-            include: { BusAssignment: { select: { BusAssignmentID: true, BusID: true, AssignmentType: true, Status: true } } },
+            include: { 
+              BusAssignment: { 
+                select: { 
+                  BusAssignmentID: true, 
+                  BusID: true, 
+                  AssignmentType: true, 
+                  Status: true 
+                } 
+              } 
+            },
           },
         },
       });
@@ -269,7 +313,7 @@ export class RentalRequestService {
       return rr;
     });
 
-    // invalidate cache if used
+    // invalidate cache
     await Promise.all(RENTAL_REQUESTS_CACHE_KEYS.map(k => delCache(k)));
     return created;
   }
@@ -308,7 +352,7 @@ export class RentalRequestService {
     const {
       command,
       rentalRequestUpdates,
-      rentalAssignmentUpdates, // not used currently but kept for compatibility
+      rentalAssignmentUpdates,
       busAssignmentUpdates,
       drivers,
     } = body ?? {};
@@ -341,7 +385,6 @@ export class RentalRequestService {
         if (isApprove) {
           if (!rba || !busAssignment) throw new Error('Cannot approve: no associated BusAssignment');
 
-          // Update provided fields and immediately mark request as Approved
           await tx.rentalRequest.update({
             where: { RentalRequestID },
             data: { ...rentalRequestUpdates, Status: RentalRequestStatus.Approved, UpdatedBy: actorId },

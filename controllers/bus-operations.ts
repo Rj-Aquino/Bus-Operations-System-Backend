@@ -75,135 +75,154 @@ export class BusOperationsController {
       return this.handleError(err);
     }
   }
+private async fetchBusOperations(statusParam: string | null): Promise<any[]> {
+  const whereClause: any = {
+    IsDeleted: false,
+    AssignmentType: 'Regular',
+  };
 
-  private async fetchBusOperations(statusParam: string | null): Promise<any[]> {
-    const whereClause: any = {
-      IsDeleted: false,
-      AssignmentType: 'Regular',
-    };
-
-    if (statusParam !== null) {
-      const validStatuses = Object.values(BusOperationStatus);
-      if (!validStatuses.includes(statusParam as BusOperationStatus)) {
-        throw new Error('Invalid status value');
-      }
-      whereClause.Status = statusParam as BusOperationStatus;
+  if (statusParam !== null) {
+    const validStatuses = Object.values(BusOperationStatus);
+    if (!validStatuses.includes(statusParam as BusOperationStatus)) {
+      throw new Error('Invalid status value');
     }
+    whereClause.Status = statusParam as BusOperationStatus;
+  }
 
-    const busAssignments = await prisma.busAssignment.findMany({
-      where: whereClause,
-      orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
-      select: {
-        BusAssignmentID: true,
-        BusID: true,
-        Battery: true,
-        Lights: true,
-        Oil: true,
-        Water: true,
-        Brake: true,
-        Air: true,
-        Gas: true,
-        Engine: true,
-        TireCondition: true,
-        Self_Driver: true,
-        Self_Conductor: true,
-        IsDeleted: true,
-        Status: true,
-        CreatedAt: true,
-        UpdatedAt: true,
-        CreatedBy: true,
-        UpdatedBy: true,
-        Route: {
-          select: {
-            RouteID: true,
-            RouteName: true,
-          },
+  const busAssignments = await prisma.busAssignment.findMany({
+    where: whereClause,
+    orderBy: [{ UpdatedAt: 'desc' }, { CreatedAt: 'desc' }],
+    select: {
+      BusAssignmentID: true,
+      BusID: true,
+      Battery: true,
+      Lights: true,
+      Oil: true,
+      Water: true,
+      Brake: true,
+      Air: true,
+      Gas: true,
+      Engine: true,
+      TireCondition: true,
+      Self_Driver: true,
+      Self_Conductor: true,
+      IsDeleted: true,
+      Status: true,
+      CreatedAt: true,
+      UpdatedAt: true,
+      CreatedBy: true,
+      UpdatedBy: true,
+      Route: {
+        select: {
+          RouteID: true,
+          RouteName: true,
         },
-        RegularBusAssignment: {
-          select: {
-            DriverID: true,
-            ConductorID: true,
-            LatestBusTripID: true,
-            LatestBusTrip: {
-              select: {
-                BusTripID: true,
-                DispatchedAt: true,
-                CompletedAt: true,
-                Sales: true,
-                PettyCash: true,
-                Remarks: true,
-                TripExpense: true,
-                Payment_Method: true,
-                TicketBusTrips: {
-                  select: {
-                    TicketBusTripID: true,
-                    StartingIDNumber: true,
-                    EndingIDNumber: true,
-                    OverallEndingID: true,
-                    TicketType: {
-                      select: {
-                        TicketTypeID: true,
-                        Value: true,
-                      },
+      },
+      RegularBusAssignment: {
+        select: {
+          DriverID: true,
+          ConductorID: true,
+          LatestBusTripID: true,
+          LatestBusTrip: {
+            select: {
+              BusTripID: true,
+              DispatchedAt: true,
+              CompletedAt: true,
+              Sales: true,
+              PettyCash: true,
+              Remarks: true,
+              TripExpense: true,
+              Payment_Method: true,
+              TicketBusTrips: {
+                select: {
+                  TicketBusTripID: true,
+                  StartingIDNumber: true,
+                  EndingIDNumber: true,
+                  OverallEndingID: true,
+                  TicketType: {
+                    select: {
+                      TicketTypeID: true,
+                      Value: true,
                     },
                   },
                 },
               },
-            },
-            QuotaPolicies: {
-              select: {
-                QuotaPolicyID: true,
-                StartDate: true,
-                EndDate: true,
-                Fixed: { select: { Quota: true } },
-                Percentage: { select: { Percentage: true } },
+              // ✅ ADD THIS - DamageReports for LatestBusTrip
+              DamageReports: {
+                select: {
+                  DamageReportID: true,
+                  Status: true,
+                  CheckDate: true,
+                  Battery: true,
+                  Lights: true,
+                  Oil: true,
+                  Water: true,
+                  Brake: true,
+                  Air: true,
+                  Gas: true,
+                  Engine: true,
+                  TireCondition: true,
+                  Note: true,
+                  CreatedAt: true,
+                  UpdatedAt: true,
+                },
               },
             },
-            CreatedAt: true,
-            UpdatedAt: true,
-            CreatedBy: true,
-            UpdatedBy: true,
           },
-        },
-        DamageReports: {
-          orderBy: { CheckDate: 'desc' },
-          take: 1,
-          select: {
-            DamageReportID: true,
-            Battery: true,
-            Lights: true,
-            Oil: true,
-            Water: true,
-            Brake: true,
-            Air: true,
-            Gas: true,
-            Engine: true,
-            TireCondition: true,
-            Note: true,
-            CheckDate: true,
+          QuotaPolicies: {
+            select: {
+              QuotaPolicyID: true,
+              StartDate: true,
+              EndDate: true,
+              Fixed: { select: { Quota: true } },
+              Percentage: { select: { Percentage: true } },
+            },
           },
+          CreatedAt: true,
+          UpdatedAt: true,
+          CreatedBy: true,
+          UpdatedBy: true,
         },
       },
-    });
+      DamageReports: {
+        orderBy: { CheckDate: 'desc' },
+        take: 1,
+        select: {
+          DamageReportID: true,
+          Battery: true,
+          Lights: true,
+          Oil: true,
+          Water: true,
+          Brake: true,
+          Air: true,
+          Gas: true,
+          Engine: true,
+          TireCondition: true,
+          Note: true,
+          CheckDate: true,
+        },
+      },
+    },
+  });
 
-    return busAssignments.map(assignment => {
-      let regular = assignment.RegularBusAssignment;
+  return busAssignments.map(assignment => {
+    let regular = assignment.RegularBusAssignment;
 
-      if (regular && regular.LatestBusTripID === null) {
-        const { LatestBusTrip, ...rest } = regular;
-        regular = { ...rest, LatestBusTrip: null };
-      }
+    if (regular && regular.LatestBusTripID === null) {
+      const { LatestBusTrip, ...rest } = regular;
+      regular = { ...rest, LatestBusTrip: null };
+    }
 
-      const latestDamageReport = assignment.DamageReports?.[0] ?? null;
-      const { DamageReports, ...assignmentWithoutDamage } = assignment;
+    const latestDamageReport = assignment.DamageReports?.[0] ?? null;
+    const { DamageReports, ...assignmentWithoutDamage } = assignment;
 
-      return {
-        ...assignmentWithoutDamage,
-        RegularBusAssignment: regular,
-        LatestDamageReport: latestDamageReport,
-      };
-    });
-  }
+    return {
+      ...assignmentWithoutDamage,
+      RegularBusAssignment: regular,
+      LatestDamageReport: latestDamageReport,
+    };
+  });
+}
 
   private async invalidateCaches(): Promise<void> {
     await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));

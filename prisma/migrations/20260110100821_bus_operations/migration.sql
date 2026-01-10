@@ -20,7 +20,7 @@ CREATE TYPE "MaintenanceStatus" AS ENUM ('Pending', 'InProgress', 'Completed', '
 CREATE TYPE "MaintenancePriority" AS ENUM ('Low', 'Medium', 'High', 'Critical');
 
 -- CreateEnum
-CREATE TYPE "TaskStatus" AS ENUM ('Pending', 'InProgress', 'Completed');
+CREATE TYPE "TaskStatus" AS ENUM ('Pending', 'InProgress', 'Completed', 'Cancelled');
 
 -- CreateEnum
 CREATE TYPE "TaskType" AS ENUM ('Inspection', 'Repair', 'Replacement', 'Cleaning', 'Testing', 'Documentation', 'Other');
@@ -267,15 +267,16 @@ CREATE TABLE "RentalRequest" (
 CREATE TABLE "DamageReport" (
     "DamageReportID" TEXT NOT NULL,
     "BusAssignmentID" TEXT NOT NULL,
-    "Battery" BOOLEAN NOT NULL DEFAULT true,
-    "Lights" BOOLEAN NOT NULL DEFAULT true,
-    "Oil" BOOLEAN NOT NULL DEFAULT true,
-    "Water" BOOLEAN NOT NULL DEFAULT true,
-    "Brake" BOOLEAN NOT NULL DEFAULT true,
-    "Air" BOOLEAN NOT NULL DEFAULT true,
-    "Gas" BOOLEAN NOT NULL DEFAULT true,
-    "Engine" BOOLEAN NOT NULL DEFAULT true,
-    "TireCondition" BOOLEAN NOT NULL DEFAULT true,
+    "BusTripID" TEXT,
+    "Battery" BOOLEAN NOT NULL DEFAULT false,
+    "Lights" BOOLEAN NOT NULL DEFAULT false,
+    "Oil" BOOLEAN NOT NULL DEFAULT false,
+    "Water" BOOLEAN NOT NULL DEFAULT false,
+    "Brake" BOOLEAN NOT NULL DEFAULT false,
+    "Air" BOOLEAN NOT NULL DEFAULT false,
+    "Gas" BOOLEAN NOT NULL DEFAULT false,
+    "Engine" BOOLEAN NOT NULL DEFAULT false,
+    "TireCondition" BOOLEAN NOT NULL DEFAULT false,
     "Note" TEXT,
     "CheckDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "Status" "DamageReportStatus" NOT NULL DEFAULT 'NA',
@@ -432,6 +433,9 @@ ALTER TABLE "RentalRequest" ADD CONSTRAINT "RentalRequest_RentalBusAssignmentID_
 
 -- AddForeignKey
 ALTER TABLE "DamageReport" ADD CONSTRAINT "DamageReport_BusAssignmentID_fkey" FOREIGN KEY ("BusAssignmentID") REFERENCES "BusAssignment"("BusAssignmentID") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DamageReport" ADD CONSTRAINT "DamageReport_BusTripID_fkey" FOREIGN KEY ("BusTripID") REFERENCES "BusTrip"("BusTripID") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "MaintenanceWork" ADD CONSTRAINT "MaintenanceWork_DamageReportID_fkey" FOREIGN KEY ("DamageReportID") REFERENCES "DamageReport"("DamageReportID") ON DELETE CASCADE ON UPDATE CASCADE;

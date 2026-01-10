@@ -329,17 +329,18 @@ enum DamageReportStatus {
 model DamageReport {
   DamageReportID         String   @id
   BusAssignmentID  String
+  BusTripID String?
 
   // Vehicle condition checks (true = OK/no damage, false = damaged/issue found)
-  Battery                Boolean  @default(true)
-  Lights                 Boolean  @default(true)
-  Oil                    Boolean  @default(true)
-  Water                  Boolean  @default(true)
-  Brake                  Boolean  @default(true)
-  Air                    Boolean  @default(true)
-  Gas                    Boolean  @default(true)
-  Engine                 Boolean  @default(true)
-  TireCondition          Boolean  @default(true)
+  Battery                Boolean  @default(false)
+  Lights                 Boolean  @default(false)
+  Oil                    Boolean  @default(false)
+  Water                  Boolean  @default(false)
+  Brake                  Boolean  @default(false)
+  Air                    Boolean  @default(false)
+  Gas                    Boolean  @default(false)
+  Engine                 Boolean  @default(false)
+  TireCondition          Boolean  @default(false)
 
   // Additional notes
   Note                   String?
@@ -352,6 +353,7 @@ model DamageReport {
 
   // Relations
   BusAssignment    BusAssignment @relation(fields: [BusAssignmentID], references: [BusAssignmentID], onDelete: Cascade)
+  BusTrip   BusTrip? @relation(fields: [BusTripID], references: [BusTripID], onDelete: Cascade)
   MaintenanceWork        MaintenanceWork?
 
   CreatedAt              DateTime @default(now())
@@ -409,6 +411,7 @@ enum TaskStatus {
   Pending
   InProgress
   Completed
+  Cancelled
 }
 
 enum TaskType {

@@ -1,7 +1,6 @@
 import { BusOperationStatus , PrismaClient, ToolSourceType, DamageReportStatus, RentalRequestStatus  } from '@prisma/client';
 import { generateFormattedID } from '../lib/idGenerator'
 import {clearAllCache} from '../lib/cache';
-import { email } from 'zod/v4';
 
 const prisma = new PrismaClient();
 
@@ -409,18 +408,18 @@ async function seedQuotaPolicy() {
 
   const quotaPolicyData = [
     {
-      StartDate: new Date('2025-01-01T00:00:00Z'),
-      EndDate: new Date('2025-12-31T23:59:59Z'),
+      StartDate: new Date('2026-01-01T00:00:00Z'),
+      EndDate: new Date('2026-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[0].RegularBusAssignmentID,
     },
     {
-      StartDate: new Date('2025-01-01T00:00:00Z'),
-      EndDate: new Date('2025-12-31T23:59:59Z'),
+      StartDate: new Date('2026-01-01T00:00:00Z'),
+      EndDate: new Date('2026-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[1].RegularBusAssignmentID,
     },
     {
-      StartDate: new Date('2025-01-01T00:00:00Z'),
-      EndDate: new Date('2025-12-31T23:59:59Z'),
+      StartDate: new Date('2026-01-01T00:00:00Z'),
+      EndDate: new Date('2026-12-31T23:59:59Z'),
       RegularBusAssignmentID: regularAssignments[2].RegularBusAssignmentID,
     },
   ];
@@ -820,7 +819,7 @@ async function seedRentalRequests(rentalIDs: { [key: string]: string }) {
       distanceKM: 100.0,
       rentalPrice: 12500.0,
       passengers: 30,
-      rentalDate: new Date('2026-01-14'),
+      rentalDate: new Date('2026-01-10'),
       durationDays: 1,
       requirements: null,
 
