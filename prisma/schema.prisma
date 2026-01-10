@@ -189,6 +189,7 @@ model BusTrip {
 
   regularBusAssignment RegularBusAssignment @relation(fields: [RegularBusAssignmentID], references: [RegularBusAssignmentID])
   TicketBusTrips TicketBusTrip[]
+  DamageReports DamageReport[]
 
   LatestForAssignment RegularBusAssignment? @relation("LatestBusTrip")
 
