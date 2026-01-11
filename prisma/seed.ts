@@ -646,7 +646,7 @@ async function seedRentalBusAssignments() {
       id: ids.rental2,
       busID: busIDs[14],
       routeID: routeID2,
-      status: BusOperationStatus.NotReady,
+      status: BusOperationStatus.NotStarted,
       allChecks: false,
       note: 'Minor oil leakage detected during inspection.',
       driverIDs: [driverIDs[2], driverIDs[3]],
