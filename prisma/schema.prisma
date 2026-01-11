@@ -114,7 +114,7 @@ enum AssignmentType {
 model BusAssignment {
   BusAssignmentID String @id
   BusID           String
-  RouteID         String
+  RouteID         String?
 
   AssignmentType  AssignmentType @default(Regular)
 
@@ -122,7 +122,7 @@ model BusAssignment {
   Lights          Boolean @default(false)
   Oil             Boolean @default(false)
   Water           Boolean @default(false)
-  Break           Boolean @default(false)
+  Brake           Boolean @default(false)
   Air             Boolean @default(false)
   Gas             Boolean @default(false)
   Engine          Boolean @default(false)
@@ -132,10 +132,12 @@ model BusAssignment {
   IsDeleted       Boolean @default(false)
   Status          BusOperationStatus @default(NotReady)
 
-  Route Route @relation(fields: [RouteID], references: [RouteID])
+  Route Route? @relation(fields: [RouteID], references: [RouteID])
 
   RegularBusAssignment RegularBusAssignment?
   RentalBusAssignment  RentalBusAssignment?
+
+  DamageReports DamageReport[]
 
   @@index([BusID])
 
@@ -236,21 +238,6 @@ model RentalBusAssignment {
   // Relations
   RentalDrivers         RentalDriver[]
   RentalRequests        RentalRequest[]
-  DamageReports         DamageReport[]
-
-  // Damage indicators — true means damage exists
-  Battery               Boolean @default(false)
-  Lights                Boolean @default(false)
-  Oil                   Boolean @default(false)
-  Water                 Boolean @default(false)
-  Break                 Boolean @default(false)
-  Air                   Boolean @default(false)
-  Gas                   Boolean @default(false)
-  Engine                Boolean @default(false)
-  TireCondition         Boolean @default(false)
-
-  // Additional notes for other damages
-  Note                  String?
 
   CreatedAt             DateTime @default(now())
   UpdatedAt             DateTime @updatedAt
@@ -281,53 +268,48 @@ enum RentalRequestStatus {
   Completed
 }
 
-enum DamageReportStatus {
-  NA
-  Pending
-  Accepted
-  Rejected
-}
-
-enum MaintenanceStatus {
-  Pending
-  InProgress
-  Completed
-  Cancelled
-}
-
-enum MaintenancePriority {
-  Low
-  Medium
-  High
-  Critical
-}
-
 model RentalRequest {
   RentalRequestID        String   @id
   RentalBusAssignmentID  String?
 
-  PickupLocation         String
-  DropoffLocation        String
+  RouteName              String
+  Pickuplatitude         String
+  Pickuplongitude        String
+  Dropofflatitude        String
+  Dropofflongitude       String
 
   DistanceKM             Float   // Distance in kilometers
-  RentalPrice            Float
-
   NumberOfPassengers     Int
   RentalDate             DateTime
   Duration               Int     // Number of days instead of ExpectedArrivalTime
 
   SpecialRequirements    String?
-
   Status                 RentalRequestStatus @default(Pending)
+
+  AutoRejectReason       String?
 
   CustomerName           String
   CustomerContact        String
+  CustomerEmail          String
+  
+  IDType                 String
+  IDNumber               String
+  HomeAddress            String
+  IDImage                String
+
+  // Payment Fields
+  TotalRentalAmount      Float              // Final computed rental cost
+  DownPaymentAmount      Float?             // Amount paid upfront (optional if unpaid)
+  BalanceAmount          Float?             // Remaining amount owed
+  DownPaymentDate        DateTime?
+  FullPaymentDate        DateTime?
+
+  // Cancellation Fields
+  CancelledAtDate        DateTime?
+  CancelledReason        String?
 
   // Relation to RentalBusAssignment
   RentalBusAssignment    RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID])
-
-  // Relation to DamageReports
-  DamageReports          DamageReport[]
 
   IsDeleted              Boolean  @default(false)
 
@@ -337,15 +319,17 @@ model RentalRequest {
   UpdatedBy              String?
 }
 
+enum DamageReportStatus {
+  NA
+  Pending
+  Accepted
+  Rejected
+}
+
 model DamageReport {
   DamageReportID         String   @id
-  
-  // For Rental Operations (optional - null for regular ops)
-  RentalRequestID        String?
-  RentalBusAssignmentID  String?
-
-  // For Regular Bus Operations (optional - null for rentals)
-  BusTripID              String?
+  BusAssignmentID  String
+  BusTripID String?
 
   // Vehicle condition checks (true = OK/no damage, false = damaged/issue found)
   Battery                Boolean  @default(false)
@@ -368,9 +352,8 @@ model DamageReport {
   Status                 DamageReportStatus @default(NA)
 
   // Relations
-  RentalRequest          RentalRequest? @relation(fields: [RentalRequestID], references: [RentalRequestID], onDelete: Cascade)
-  RentalBusAssignment    RentalBusAssignment? @relation(fields: [RentalBusAssignmentID], references: [RentalBusAssignmentID], onDelete: Cascade)
-  BusTrip                BusTrip? @relation(fields: [BusTripID], references: [BusTripID], onDelete: Cascade)
+  BusAssignment    BusAssignment @relation(fields: [BusAssignmentID], references: [BusAssignmentID], onDelete: Cascade)
+  BusTrip   BusTrip? @relation(fields: [BusTripID], references: [BusTripID], onDelete: Cascade)
   MaintenanceWork        MaintenanceWork?
 
   CreatedAt              DateTime @default(now())
@@ -379,19 +362,29 @@ model DamageReport {
   UpdatedBy              String?
 }
 
+enum MaintenanceStatus {
+  Pending
+  InProgress
+  Completed
+  Cancelled
+}
+
+enum MaintenancePriority {
+  Low
+  Medium
+  High
+  Critical
+}
+
 model MaintenanceWork {
   MaintenanceWorkID      String   @id
-  WorkNo                 String?  @unique  // User-friendly work number: WRK-00001
   DamageReportID         String   @unique
-  BusID                  String
 
   // Maintenance details
   Status                 MaintenanceStatus @default(Pending)
   Priority               MaintenancePriority @default(Medium)
   
   WorkTitle              String?  // Title/summary of the maintenance work
-  
-  AssignedTo             String?  // Technician/Mechanic ID or name
   
   ScheduledDate          DateTime?
   DueDate                DateTime?  // Target completion date
@@ -414,18 +407,33 @@ model MaintenanceWork {
   UpdatedBy              String?
 }
 
+enum TaskStatus {
+  Pending
+  InProgress
+  Completed
+  Cancelled
+}
+
+enum TaskType {
+  Inspection     // Checking, diagnosing, verifying issues
+  Repair         // Fixing damaged parts
+  Replacement    // Removing and installing parts
+  Cleaning       // General cleaning or clearing debris
+  Testing        // Testing system performance or safety checks
+  Documentation  // Reporting, logging, paperwork
+  Other          // Catch-all for special/rare cases
+}
+
 model Task {
-  TaskID                 String   @id @default(cuid())
+  TaskID                 String   @id
   MaintenanceWorkID      String
   
-  TaskNumber             String?  // Auto-generated: TSK-001, TSK-002, etc.
   TaskName               String
-  TaskType               String?  // General, Repair, Inspection, etc.
+  TaskType               TaskType 
   TaskDescription        String?
   
   AssignedTo             String?  // Specific mechanic assigned to this task
   Status                 TaskStatus @default(Pending)
-  Priority               String?  // Can inherit from parent or be set independently
   
   StartDate              DateTime?
   CompletedDate          DateTime?
@@ -436,6 +444,7 @@ model Task {
   
   // Relation to MaintenanceWork (many-to-one)
   MaintenanceWork        MaintenanceWork @relation(fields: [MaintenanceWorkID], references: [MaintenanceWorkID], onDelete: Cascade)
+  ToolsUsed              TaskTool[]
 
   CreatedAt              DateTime @default(now())
   UpdatedAt              DateTime @updatedAt
@@ -446,9 +455,33 @@ model Task {
   @@index([Status])
 }
 
-enum TaskStatus {
-  Pending
-  InProgress
-  Completed
+enum ToolSourceType {
+  FromInventory       // Pulled from warehouse stock
+  PurchasedExternally // Bought because no inventory was available
 }
 
+model TaskTool {
+  TaskToolID        String   @id
+  TaskID            String
+
+  ToolID            String?      // Reference to external inventory item (if exists)
+  QuantityUsed      Float
+  Unit              String       
+
+  SourceType        ToolSourceType @default(FromInventory)
+
+  CostPerUnit       Float?
+  TotalCost         Float?
+
+  Notes             String?
+
+  Task              Task     @relation(fields: [TaskID], references: [TaskID], onDelete: Cascade)
+
+  CreatedAt         DateTime @default(now())
+  UpdatedAt         DateTime @updatedAt
+  CreatedBy              String?
+  UpdatedBy              String?
+
+  @@index([TaskID])
+  @@index([ToolID])
+}

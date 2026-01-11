@@ -18,14 +18,15 @@ const postHandler = async (request: NextRequest) => {
   try {
     const body = await request.json();
     const {
+      BusAssignmentID,
       BusTripID,
-      Description,
-      Status: requestedStatus,
-      VehicleCondition,
       Notes,
+      Status: requestedStatus,
+      VehicleCondition, // object with boolean fields
     } = body;
 
-    // Validate required fields
+    console.log('[Vehicle Check] Received data:', { BusAssignmentID, BusTripID, VehicleCondition });
+
     if (!BusTripID) {
       return NextResponse.json(
         { error: 'BusTripID is required for vehicle check' },
@@ -33,17 +34,24 @@ const postHandler = async (request: NextRequest) => {
       );
     }
 
-    // Verify that the bus trip exists
+    if (!BusAssignmentID) {
+      return NextResponse.json(
+        { error: 'BusAssignmentID is required for vehicle check' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the bus trip exists
     const busTrip = await prisma.busTrip.findUnique({
       where: { BusTripID },
       include: {
         regularBusAssignment: {
           include: {
-            BusAssignment: true
-          }
+            BusAssignment: true,
+          },
         },
-        DamageReports: true
-      }
+        DamageReports: true,
+      },
     });
 
     if (!busTrip) {
@@ -53,70 +61,87 @@ const postHandler = async (request: NextRequest) => {
       );
     }
 
-    // Check if a vehicle check already exists for this trip
-    if (busTrip.DamageReports && busTrip.DamageReports.length > 0) {
+    // Check if a damage report already exists for this trip
+    if (busTrip.DamageReports.length > 0) {
       return NextResponse.json(
         { error: 'Vehicle check already completed for this trip' },
         { status: 400 }
       );
     }
 
-    // Generate ID for the damage report
+    // Generate new ID
     const DamageReportID = await generateFormattedID('DR');
 
-    // Parse vehicle condition from object to boolean fields
+    // Map VehicleCondition object to schema boolean fields
     const damageData: any = {
       DamageReportID,
       BusTripID,
-      Note: Notes || Description || null,
+      BusAssignmentID, // Use the provided BusAssignmentID
+      Note: Notes || null,
       CheckDate: new Date(),
-      CreatedBy: user?.userId || null,
-      // RentalRequestID and RentalBusAssignmentID are null for regular bus operations
+      CreatedBy: user?.userId || 'mock-admin',
+      UpdatedBy: user?.userId || 'mock-admin',
     };
 
-    // Map vehicle condition object to individual boolean fields
+    const defaultCondition = true;
+    
+    // Map the VehicleCondition object properly
     if (VehicleCondition && typeof VehicleCondition === 'object') {
-      damageData.Battery = VehicleCondition.Battery ?? true;
-      damageData.Lights = VehicleCondition.Lights ?? true;
-      damageData.Oil = VehicleCondition.Oil ?? true;
-      damageData.Water = VehicleCondition.Water ?? true;
-      damageData.Brake = VehicleCondition.Brake ?? true;
-      damageData.Air = VehicleCondition.Air ?? true;
-      damageData.Gas = VehicleCondition.Gas ?? true;
-      damageData.Engine = VehicleCondition.Engine ?? true;
-      damageData.TireCondition = VehicleCondition['Tire Condition'] ?? true;
+      // Handle both display names and backend field names
+      damageData.Battery = VehicleCondition.Battery ?? defaultCondition;
+      damageData.Lights = VehicleCondition.Lights ?? defaultCondition;
+      damageData.Oil = VehicleCondition.Oil ?? defaultCondition;
+      damageData.Water = VehicleCondition.Water ?? defaultCondition;
+      damageData.Brake = VehicleCondition.Brake ?? defaultCondition;
+      damageData.Air = VehicleCondition.Air ?? defaultCondition;
+      damageData.Gas = VehicleCondition.Gas ?? defaultCondition;
+      damageData.Engine = VehicleCondition.Engine ?? defaultCondition;
+      
+      // Handle both "Tire Condition" and "TireCondition"
+      damageData.TireCondition = VehicleCondition.TireCondition ?? 
+                                  VehicleCondition['Tire Condition'] ?? 
+                                  defaultCondition;
     } else {
-      // Default all to true (no damage) if no vehicle condition provided
-      damageData.Battery = true;
-      damageData.Lights = true;
-      damageData.Oil = true;
-      damageData.Water = true;
-      damageData.Brake = true;
-      damageData.Air = true;
-      damageData.Gas = true;
-      damageData.Engine = true;
-      damageData.TireCondition = true;
+      // Default all to true (no damage)
+      damageData.Battery = defaultCondition;
+      damageData.Lights = defaultCondition;
+      damageData.Oil = defaultCondition;
+      damageData.Water = defaultCondition;
+      damageData.Brake = defaultCondition;
+      damageData.Air = defaultCondition;
+      damageData.Gas = defaultCondition;
+      damageData.Engine = defaultCondition;
+      damageData.TireCondition = defaultCondition;
     }
 
-    // Auto-assign status based on damage items
-    // Note: false = damaged/issue found, true = no damage/OK
-    // If ALL items are true (all OK), set status to NA (no damage found)
-    // If ANY item is false (has damage), set status to Pending (needs review)
-    const allItemsOk = damageData.Battery && damageData.Lights && damageData.Oil && 
-                       damageData.Water && damageData.Brake && damageData.Air && 
-                       damageData.Gas && damageData.Engine && damageData.TireCondition;
+    // Auto-assign status based on condition
+    const conditionValues = [
+      damageData.Battery,
+      damageData.Lights,
+      damageData.Oil,
+      damageData.Water,
+      damageData.Brake,
+      damageData.Air,
+      damageData.Gas,
+      damageData.Engine,
+      damageData.TireCondition
+    ];
     
-    damageData.Status = allItemsOk ? 'NA' : 'Pending';
+    const allOk = conditionValues.every(val => val === true);
+    damageData.Status = allOk ? 'NA' : 'Pending';
 
-    // Override with requested status if provided
-    if (requestedStatus && ['Pending', 'Resolved', 'NA'].includes(requestedStatus)) {
+    // Override with requested status if valid
+    if (requestedStatus && ['Pending', 'Accepted', 'Rejected', 'NA'].includes(requestedStatus)) {
       damageData.Status = requestedStatus;
     }
+
+    console.log('[Vehicle Check] Creating damage report with data:', damageData);
 
     // Create the damage report
     const damageReport = await prisma.damageReport.create({
       data: damageData,
       include: {
+        BusAssignment: true,
         BusTrip: {
           include: {
             regularBusAssignment: {
@@ -125,16 +150,25 @@ const postHandler = async (request: NextRequest) => {
               }
             }
           }
-        }
-      }
+        },
+      },
     });
 
-    // Clear bus operations cache so the vehicle check status is reflected
-    const baseKey = CACHE_KEYS.BUS_OPERATIONS_ALL ?? 'bus_operations:all';
-    await Promise.all([
-      delCache(baseKey),
-      delCache(CACHE_KEYS.BUS_OPERATIONS_INOPERATION ?? `${baseKey}_InOperation`),
-    ]);
+    console.log('[Vehicle Check] Damage report created successfully:', damageReport.DamageReportID);
+
+    // Clear relevant caches
+    const cachesToClear = [
+      CACHE_KEYS.BUS_OPERATIONS_ALL,
+      CACHE_KEYS.BUS_OPERATIONS_INOPERATION,
+      CACHE_KEYS.BUS_OPERATIONS_NOTREADY,
+      CACHE_KEYS.BUS_OPERATIONS_NOTSTARTED,
+      CACHE_KEYS.DAMAGE_REPORT_ALL,
+      CACHE_KEYS.DAMAGE_REPORT_PENDING,
+      CACHE_KEYS.DAMAGE_REPORT_NA,
+      CACHE_KEYS.DASHBOARD
+    ].filter((key): key is string => !!key)
+
+    await Promise.all(cachesToClear.map(key => delCache(key)));
 
     return NextResponse.json(damageReport, { status: 201 });
   } catch (err) {
