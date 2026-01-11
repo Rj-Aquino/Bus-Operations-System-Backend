@@ -36,7 +36,6 @@ async function refreshAccessToken(refreshToken: string) {
     throw new Error('Token refresh failed');
   }
 }
-
 const refreshHandler = async (request: NextRequest) => {
   const cookie = request.headers.get('cookie');
   const refreshToken = extractTokenFromCookie(cookie || '', 'refreshToken');
@@ -51,13 +50,14 @@ const refreshHandler = async (request: NextRequest) => {
   try {
     const tokens = await refreshAccessToken(refreshToken);
     
-    // Create response - NO tokens in body for security!
+    // Return accessToken in response body for frontend to store in memory
     const response = NextResponse.json({ 
       success: true,
-      message: 'Token refreshed successfully'
+      message: 'Token refreshed successfully',
+      accessToken: tokens.accessToken, // ✅ Send this to frontend
     });
     
-    // Set new tokens as secure httpOnly cookies
+    // Still set accessToken cookie for backwards compatibility (optional)
     response.cookies.set('accessToken', tokens.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -67,6 +67,7 @@ const refreshHandler = async (request: NextRequest) => {
       maxAge: 60 * 15, // 15 minutes
     });
     
+    // Update refreshToken cookie
     response.cookies.set('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
