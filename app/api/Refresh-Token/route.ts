@@ -1,5 +1,6 @@
 // app/api/auth/refresh/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { withCors } from '@/lib/withcors';
 
 const REFRESH_API_URL = process.env.REFRESH_API_URL || '';
 
@@ -36,7 +37,7 @@ async function refreshAccessToken(refreshToken: string) {
   }
 }
 
-export async function POST(request: NextRequest) {
+const refreshHandler = async (request: NextRequest) => {
   const cookie = request.headers.get('cookie');
   const refreshToken = extractTokenFromCookie(cookie || '', 'refreshToken');
 
@@ -85,15 +86,8 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
-}
+};
 
-// Add OPTIONS for CORS if needed
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { 
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    }
-  });
-}
+// Wrap the handler with CORS
+export const POST = withCors(refreshHandler);
+export const OPTIONS = withCors(() => Promise.resolve(new NextResponse(null, { status: 204 })));
