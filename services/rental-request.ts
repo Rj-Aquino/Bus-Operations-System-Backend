@@ -470,16 +470,40 @@ export class RentalRequestService {
         }
 
         // Approved + NotStarted
-        if (baStatus === BusOperationStatus.NotStarted) {
-          if (command === 'toInOperation') {
-            await tx.busAssignment.update({
-              where: { BusAssignmentID: busAssignment.BusAssignmentID },
-              data: { Status: BusOperationStatus.InOperation, UpdatedBy: actorId },
-            });
-          } else {
-            throw new Error('Only transition to InOperation allowed from NotStarted');
+          if (baStatus === BusOperationStatus.NotStarted) {
+            // Allow driver reassignment without status change
+            if (Array.isArray(drivers) && drivers.length === 2 && !command) {
+              // Just reassign drivers, don't change status
+              await tx.rentalDriver.deleteMany({ where: { RentalBusAssignmentID: rba.RentalBusAssignmentID } });
+              for (const driverID of drivers) {
+                const rdID = await generateFormattedID('RD');
+                await tx.rentalDriver.create({
+                  data: {
+                    RentalDriverID: rdID,
+                    RentalBusAssignmentID: rba.RentalBusAssignmentID,
+                    DriverID: String(driverID),
+                    CreatedBy: actorId,
+                  },
+                });
+              }
+              // Don't change status, just update drivers
+            } 
+            // Transition to InOperation
+            else if (command === 'toInOperation') {
+              await tx.busAssignment.update({
+                where: { BusAssignmentID: busAssignment.BusAssignmentID },
+                data: { Status: BusOperationStatus.InOperation, UpdatedBy: actorId },
+              });
+            } 
+            // Invalid command
+            else if (command && command !== 'toInOperation') {
+              throw new Error('Only transition to InOperation allowed from NotStarted');
+            }
+            // If drivers array is provided but invalid count
+            else if (Array.isArray(drivers) && drivers.length !== 2) {
+              throw new Error(`Exactly 2 drivers required (found ${drivers.length})`);
+            }
           }
-        }
 
         // Approved + InOperation
         if (baStatus === BusOperationStatus.InOperation) {
