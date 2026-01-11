@@ -31,11 +31,11 @@ export async function fetchNewDrivers() {
     const res = await fetchWithTimeout(process.env.DRIVER_URL as string);
 
     if (!res.ok) throw new Error('Failed to fetch drivers');
-    return await res.json();
+    const data = await res.json();
+    return data.employees || []; // Extract the employees array
 
   } catch (error) {
     console.error("Driver API unavailable or timed out, falling back:", error);
-
     return await fetchDrivers();
   }
 }
@@ -45,7 +45,8 @@ export async function fetchNewConductors() {
     const res = await fetchWithTimeout(process.env.CONDUCTOR_URL as string);
 
     if (!res.ok) throw new Error('Failed to fetch conductors');
-    return await res.json();
+    const data = await res.json();
+    return data.employees || []; // or data.conductors, depending on your API
   } catch (error) {
     console.error("Conductor API unavailable or timed out, falling back:", error);
     return await fetchConductors();
