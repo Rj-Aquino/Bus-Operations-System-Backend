@@ -65,16 +65,36 @@ export type AuthResult = {
 
 export const authenticateRequest = async (request: Request): Promise<AuthResult> => {
   const cookie = request.headers.get('cookie');
+  const authHeader = request.headers.get('authorization');
   
-  const accessToken = extractTokenFromCookie(cookie || '', 'accessToken');
+  // Try to get accessToken from Authorization header first
+  let accessToken: string | null = null;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+  } else {
+    // Fallback: try to get from cookie (for backwards compatibility)
+    accessToken = extractTokenFromCookie(cookie || '', 'accessToken');
+  }
 
+  // If no access token, check for refresh token
   if (!accessToken) {
+    const refreshToken = extractTokenFromCookie(cookie || '', 'refreshToken');
+    
+    if (refreshToken) {
+      return { 
+        error: 'Access token missing. Please refresh your session.', 
+        status: 401 
+      };
+    }
+    
     return { 
       error: 'Missing access token. Please login again.', 
       status: 401 
     };
   }
 
+  // Check if token is expired
   if (isTokenExpired(accessToken)) {
     return { 
       error: 'Token expired. Please refresh your session.', 
