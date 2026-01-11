@@ -55,18 +55,17 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+// backend: lib/auth.ts
 export type AuthResult = {
-  user: JWTUser;
-  token: string;
-} | {
-  error: string;
-  status: number;
+  user?: JWTUser;
+  token?: string;
+  error?: string;
+  status?: number;
 };
 
 export const authenticateRequest = async (request: Request): Promise<AuthResult> => {
   const cookie = request.headers.get('cookie');
   
-  // Get accessToken from cookie (NOT refreshToken!)
   const accessToken = extractTokenFromCookie(cookie || '', 'accessToken');
 
   if (!accessToken) {
@@ -76,7 +75,6 @@ export const authenticateRequest = async (request: Request): Promise<AuthResult>
     };
   }
 
-  // Check if token is expired
   if (isTokenExpired(accessToken)) {
     return { 
       error: 'Token expired. Please refresh your session.', 
@@ -84,7 +82,6 @@ export const authenticateRequest = async (request: Request): Promise<AuthResult>
     };
   }
 
-  // Decode and validate the token locally
   try {
     const decoded = decodeJWT(accessToken) as JWTUser;
 
