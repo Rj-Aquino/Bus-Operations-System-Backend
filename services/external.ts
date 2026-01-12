@@ -35,19 +35,20 @@ export class ExternalService {
   }
 
   private normalizeBusType(raw: string): BusType {
-    const low = String(raw ?? '').trim().toLowerCase();
-    if (low.includes('non')) return 'Non-Aircon';
-    if (low.includes('air')) return 'Aircon';
-    return 'Non-Aircon'; // default
-  }
+  const low = String(raw ?? '').trim().toLowerCase();
+  // Handle both formats: AIRCONDITIONED/ORDINARY and Aircon/Non-Aircon
+  if (low.includes('air') || low === 'airconditioned') return 'Aircon';
+  if (low.includes('non') || low === 'ordinary') return 'Non-Aircon';
+  return 'Non-Aircon'; // default
+}
 
   private mapBus(bus: any): any {
     return {
-      busId: String(bus.bus_id),
-      license_plate: bus.plate_number ?? null,
+      busId: String(bus.bus_id || bus.id), // Handle both bus_id and id
+      license_plate: bus.plate_number ?? bus.license_plate ?? null, // Handle both field names
       body_number: bus.body_number ?? null,
-      type: this.normalizeBusType(bus.bus_type),
-      capacity: bus.seat_capacity ?? null,
+      type: this.normalizeBusType(bus.bus_type || bus.type), // Handle both field names
+      capacity: bus.seat_capacity ?? bus.capacity ?? null, // Handle both field names
     };
   }
 
