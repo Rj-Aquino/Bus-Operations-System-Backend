@@ -128,7 +128,18 @@ export class TaskManagementService {
     try {
       const buses = await fetchNewBuses();
       const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
-      return Object.fromEntries(busesArr.map((b: any) => [b.bus_id ?? b.busId, b]));
+
+      // ✅ normalize bus fields
+      const normalized = busesArr.map((b: any) => ({
+        bus_id: b.bus_id ?? b.busId ?? b.id,
+        plate_number: b.plate_number ?? b.license_plate ?? null,
+        bus_type: b.bus_type ?? b.type ?? null,
+        seat_capacity: b.seat_capacity ?? b.capacity ?? null,
+      }));
+
+      return Object.fromEntries(
+        normalized.map((b: any) => [String(b.bus_id), b])
+      );
     } catch {
       return {};
     }

@@ -34,6 +34,35 @@ export class MaintenanceWorkController {
     CACHE_KEYS.MAINTENANCE_CANCELLED_MEDIUM ?? '',
     CACHE_KEYS.MAINTENANCE_CANCELLED_HIGH ?? '',
     CACHE_KEYS.MAINTENANCE_CANCELLED_CRITICAL ?? '',
+
+        // Task status keys (all variants)
+    CACHE_KEYS.TASK_ALL ?? '',
+    CACHE_KEYS.TASK_PENDING ?? '',
+    CACHE_KEYS.TASK_INPROGRESS ?? '',
+    CACHE_KEYS.TASK_COMPLETED ?? '',
+    CACHE_KEYS.TASK_CANCELLED ?? '',
+    // Task priority-only keys
+    CACHE_KEYS.TASK_LOW ?? '',
+    CACHE_KEYS.TASK_MEDIUM ?? '',
+    CACHE_KEYS.TASK_HIGH ?? '',
+    CACHE_KEYS.TASK_CRITICAL,
+    // Task status + priority keys
+    CACHE_KEYS.TASK_PENDING_LOW ?? '',
+    CACHE_KEYS.TASK_PENDING_MEDIUM ?? '',
+    CACHE_KEYS.TASK_PENDING_HIGH ?? '',
+    CACHE_KEYS.TASK_PENDING_CRITICAL ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_LOW ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_MEDIUM ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_HIGH ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_CRITICAL ?? '',
+    CACHE_KEYS.TASK_COMPLETED_LOW ?? '',
+    CACHE_KEYS.TASK_COMPLETED_MEDIUM ?? '',
+    CACHE_KEYS.TASK_COMPLETED_HIGH ?? '',
+    CACHE_KEYS.TASK_COMPLETED_CRITICAL ?? '',
+    CACHE_KEYS.TASK_CANCELLED_LOW ?? '',
+    CACHE_KEYS.TASK_CANCELLED_MEDIUM ?? '',
+    CACHE_KEYS.TASK_CANCELLED_HIGH ?? '',
+    CACHE_KEYS.TASK_CANCELLED_CRITICAL ?? '',
   ];
   private CACHE_KEY = CACHE_KEYS.MAINTENANCE_ALL ?? '';
 
@@ -152,6 +181,11 @@ export class MaintenanceWorkController {
   }
 
     private async invalidateCaches(): Promise<void> {
-    await Promise.all(this.CACHE_KEYS_TO_INVALIDATE.filter(key => key).map(key => delCache(key)));
+await Promise.all(
+  this.CACHE_KEYS_TO_INVALIDATE
+    .filter((key): key is string => typeof key === 'string')
+    .map(key => delCache(key))
+);
+
   }
 }

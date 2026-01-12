@@ -66,50 +66,32 @@ const stopData1 = [
 ];
 
 const busIDs = [
-  'BUS-00001', 'BUS-00002', 'BUS-00003', 'BUS-00004', 'BUS-00005',
-  'BUS-00006', 'BUS-00007', 'BUS-00008', 'BUS-00009', 'BUS-00010',
-  'BUS-00011', 'BUS-00012', 'BUS-00013', 'BUS-00014', 'BUS-00015', 'BUS-00016'
+  '5', '6', '8', '9', '11',
+  '12', '14', '15', '17', '18',
+  '20', '21', '23', '24'
 ];
 
 const driverIDs = [
-  "EMP-2015-WQ690X",
-  "EMP-2023-VCEDJC",
-  "EMP-2023-LSHGK5",
-  "EMP-2025-DS0UR2",
-  "EMP-2019-X9K979",
-  "EMP-2015-AJEF3J",
-  "EMP-2025-VR0QPJ",
-  "EMP-2017-5J4OT7",
-  "EMP-2018-XP54UC",
-  "EMP-2017-43R8WX",
-  "EMP-2018-HKXDEL",
-  "EMP-2023-0Z4NI6",
-  "EMP-2022-RF81VM",
-  "EMP-2024-3O3I4O",
-  "EMP-2019-R1ID0J",
-  "EMP-2022-1JGXRU"
+  "EMP-2021-OPS-007",
+  "EMP-2026-OPS-006",
+  "EMP-2024-OPS-008",
+  "EMP-2019-OPS-009",
+  "EMP-2018-OPS-010",
+  "EMP-2024-OPS-003",
+  "EMP-2020-OPS-005",
 ];
 
 const conductorIDs = [
-  "EMP-2024-1G7B3U",
-  "EMP-2022-G9TCH1",
-  "EMP-2014-X7ZVS5",
-  "EMP-2019-66JYD4",
-  "EMP-2015-Q3L5G6",
-  "EMP-2025-0YTIVR",
-  "EMP-2018-F31CY4",
-  "EMP-2024-ZDY56R",
-  "EMP-2018-KGR5M5",
-  "EMP-2019-AU3VYR",
-  "EMP-2018-UTR359",
-  "EMP-2016-BYQXBV",
-  "EMP-2022-GWDUBZ",
-  "EMP-2024-DR6EOL",
-  "EMP-2016-01F53Z",
-  "EMP-2024-GEIPOP",
-  "EMP-2023-IUP3PT",
-  "EMP-2015-D2M988",
-  "EMP-2019-836G6H"
+ "EMP-2020-OPS-011",
+  "EMP-2022-OPS-012",
+  "EMP-2019-OPS-013",
+  "EMP-2025-OPS-015",
+  "EMP-2026-OPS-014",
+  "EMP-2026-OPS-018",
+  "EMP-2019-OPS-017",
+  "EMP-2024-OPS-016",
+  "EMP-2026-OPS-019",
+  "EMP-2019-OPS-020"
 ];
 
 async function seedStops() {
@@ -635,7 +617,7 @@ async function seedRentalBusAssignments() {
   const rentals = [
     {
       id: ids.rental1,
-      busID: busIDs[13],
+      busID: busIDs[9],
       routeID: routeID1,
       status: BusOperationStatus.NotStarted,
       allChecks: true,
@@ -644,7 +626,7 @@ async function seedRentalBusAssignments() {
     },
     {
       id: ids.rental2,
-      busID: busIDs[14],
+      busID: busIDs[12],
       routeID: routeID2,
       status: BusOperationStatus.NotReady,
       allChecks: false,
@@ -653,7 +635,7 @@ async function seedRentalBusAssignments() {
     },
     {
       id: ids.rental3,
-      busID: busIDs[15],
+      busID: busIDs[13],
       routeID: routeID1,
       status: BusOperationStatus.InOperation,
       allChecks: true,
@@ -717,17 +699,17 @@ async function seedRentalDrivers(rentalIDs: { [key: string]: string }) {
     {
       id: await generateFormattedID('RD'),
       rentalBusAssignmentID: rentalIDs.rental1,
-      driverID: driverIDs[13],
+      driverID: driverIDs[4],
     },
     {
       id: await generateFormattedID('RD'),
       rentalBusAssignmentID: rentalIDs.rental2,
-      driverID: driverIDs[14],
+      driverID: driverIDs[5],
     },
     {
       id: await generateFormattedID('RD'),
       rentalBusAssignmentID: rentalIDs.rental3,
-      driverID: driverIDs[15],
+      driverID: driverIDs[6],
     },
   ];
 
@@ -1104,7 +1086,7 @@ async function main() {
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();
-  await seedCompletedBusAssignments();
+  //await seedCompletedBusAssignments();
  
   const rentalIDs = await seedRentalBusAssignments();
 

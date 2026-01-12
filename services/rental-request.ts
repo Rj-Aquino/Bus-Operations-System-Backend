@@ -126,15 +126,29 @@ export class RentalRequestService {
       },
     });
 
-    // fetch bus data (new -> fallback)
-    let buses: any[] = [];
-    try {
-      const nb = await fetchNewBuses();
-      buses = Array.isArray(nb) && nb.length ? nb : (await fetchBuses().catch(() => [])) || [];
-    } catch {
-      buses = [];
-    }
-    const busMap = new Map((buses ?? []).map((b: any) => [String(b.bus_id), b]));
+      // fetch bus data (new -> fallback)
+      let buses: any[] = [];
+      try {
+        const nb = await fetchNewBuses();
+        buses = Array.isArray(nb) && nb.length
+          ? nb
+          : (await fetchBuses().catch(() => [])) || [];
+      } catch {
+        buses = [];
+      }
+
+      // ✅ FIX 1: normalize bus fields HERE
+      const normalizedBuses = (buses ?? []).map((b: any) => ({
+        bus_id: b.bus_id ?? b.id,
+        bus_type: b.bus_type ?? b.type,
+        plate_number: b.plate_number ?? b.license_plate,
+        seat_capacity: b.seat_capacity ?? b.capacity,
+      }));
+
+      // ✅ use normalized buses to build map
+      const busMap = new Map(
+        normalizedBuses.map((b: any) => [String(b.bus_id), b])
+      );
 
     // enrich and normalize timestamps
     return (rentalRequests ?? []).map((rr: any) => {

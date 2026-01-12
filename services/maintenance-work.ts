@@ -35,13 +35,55 @@ export class MaintenanceWorkService {
     CACHE_KEYS.MAINTENANCE_CANCELLED_MEDIUM ?? '',
     CACHE_KEYS.MAINTENANCE_CANCELLED_HIGH ?? '',
     CACHE_KEYS.MAINTENANCE_CANCELLED_CRITICAL ?? '',
+
+    // Task status keys (all variants)
+    CACHE_KEYS.TASK_ALL ?? '',
+    CACHE_KEYS.TASK_PENDING ?? '',
+    CACHE_KEYS.TASK_INPROGRESS ?? '',
+    CACHE_KEYS.TASK_COMPLETED ?? '',
+    CACHE_KEYS.TASK_CANCELLED ?? '',
+    // Task priority-only keys
+    CACHE_KEYS.TASK_LOW ?? '',
+    CACHE_KEYS.TASK_MEDIUM ?? '',
+    CACHE_KEYS.TASK_HIGH ?? '',
+    CACHE_KEYS.TASK_CRITICAL,
+    // Task status + priority keys
+    CACHE_KEYS.TASK_PENDING_LOW ?? '',
+    CACHE_KEYS.TASK_PENDING_MEDIUM ?? '',
+    CACHE_KEYS.TASK_PENDING_HIGH ?? '',
+    CACHE_KEYS.TASK_PENDING_CRITICAL ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_LOW ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_MEDIUM ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_HIGH ?? '',
+    CACHE_KEYS.TASK_INPROGRESS_CRITICAL ?? '',
+    CACHE_KEYS.TASK_COMPLETED_LOW ?? '',
+    CACHE_KEYS.TASK_COMPLETED_MEDIUM ?? '',
+    CACHE_KEYS.TASK_COMPLETED_HIGH ?? '',
+    CACHE_KEYS.TASK_COMPLETED_CRITICAL ?? '',
+    CACHE_KEYS.TASK_CANCELLED_LOW ?? '',
+    CACHE_KEYS.TASK_CANCELLED_MEDIUM ?? '',
+    CACHE_KEYS.TASK_CANCELLED_HIGH ?? '',
+    CACHE_KEYS.TASK_CANCELLED_CRITICAL ?? '',
+
   ];
 
   private async buildBusMap(): Promise<Record<string, any>> {
     try {
       const buses = await fetchNewBuses();
       const busesArr = Array.isArray(buses) ? buses : buses?.data ?? [];
-      return Object.fromEntries(busesArr.map((b: any) => [b.bus_id ?? b.busId, b]));
+
+      // ✅ normalize bus fields
+      const normalized = busesArr.map((b: any) => ({
+        bus_id: b.bus_id ?? b.busId ?? b.id,
+        plate_number: b.plate_number ?? b.license_plate,
+        bus_type: b.bus_type ?? b.type,
+        seat_capacity: b.seat_capacity ?? b.capacity,
+      }));
+
+      // ✅ build map using normalized id
+      return Object.fromEntries(
+        normalized.map((b: any) => [String(b.bus_id), b])
+      );
     } catch {
       return {};
     }
@@ -216,6 +258,10 @@ export class MaintenanceWorkService {
     return updatedWork;
   }
   private async clearCache(): Promise<void> {
-    await Promise.all(this.CACHE_KEYS_TO_CLEAR.filter(key => key).map(key => delCache(key)));
+    await Promise.all(
+  this.CACHE_KEYS_TO_CLEAR
+    .filter((key): key is string => typeof key === 'string')
+    .map(key => delCache(key))
+);
   }
 }
