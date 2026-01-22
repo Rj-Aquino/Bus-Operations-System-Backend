@@ -473,12 +473,12 @@ async function seedCompletedBusAssignments() {
   const baseDate = new Date();
   baseDate.setHours(8, 0, 0, 0); // 8:00 AM today
 
-  for (let i = 3; i < 13; i++) { // 10 assignments
+  for (let i = 0; i < 5; i++) { // 5 completed assignments - unique IDs only
 
     const busAssignmentID = await generateFormattedID('BA');
-    const busID = busIDs[i % busIDs.length];
-    const driverID = driverIDs[i % driverIDs.length];
-    const conductorID = conductorIDs[i % conductorIDs.length];
+    const busID = busIDs[4 + i]; // Use indices 4-8 (buses 11,12,14,15,17)
+    const driverID = driverIDs[3 + (i % 4)]; // Use indices 3-6 (drivers not in regular ops)
+    const conductorID = conductorIDs[3 + (i % 7)]; // Use indices 3-9 (conductors not in regular ops)
     const route = routes[i % routes.length];
 
     // Create BusAssignment
@@ -600,7 +600,7 @@ async function seedCompletedBusAssignments() {
     }
   }
 
-  console.log('10 completed bus assignments, trips, quota policies, and ticket bus trips seeded (with varied dates)');
+  console.log('5 completed bus assignments, trips, quota policies, and ticket bus trips seeded (with varied dates)');
 }
 
 async function seedRentalBusAssignments() {
@@ -622,7 +622,7 @@ async function seedRentalBusAssignments() {
       status: BusOperationStatus.NotStarted,
       allChecks: true,
       note: 'All systems checked and verified, no damages found.',
-      driverIDs: [driverIDs[0], driverIDs[1]], 
+      driverIDs: [driverIDs[3], driverIDs[4]], 
     },
     {
       id: ids.rental2,
@@ -631,7 +631,7 @@ async function seedRentalBusAssignments() {
       status: BusOperationStatus.NotReady,
       allChecks: false,
       note: 'Minor oil leakage detected during inspection.',
-      driverIDs: [driverIDs[2], driverIDs[3]],
+      driverIDs: [driverIDs[5], driverIDs[6]],
     },
     {
       id: ids.rental3,
@@ -640,7 +640,7 @@ async function seedRentalBusAssignments() {
       status: BusOperationStatus.InOperation,
       allChecks: true,
       note: null,
-      driverIDs: [driverIDs[4], driverIDs[5]],
+      driverIDs: [driverIDs[0], driverIDs[1]],
     },
   ];
 
@@ -1086,11 +1086,10 @@ async function main() {
   await seedQuotaPolicy();
   await seedFixed();
   await seedPercentage();
-  //await seedCompletedBusAssignments();
+  await seedCompletedBusAssignments();
  
   const rentalIDs = await seedRentalBusAssignments();
 
-  await seedRentalDrivers(rentalIDs);
   await seedRentalRequests(rentalIDs);
   
   // Seed damage reports, maintenance works, and tasks
