@@ -7,6 +7,7 @@ import { getCache, setCache, delCache, CACHE_KEYS } from '@/lib/cache';
 
 interface RentalSummary {
   assignment_id: string | null;
+  bus_id: string | null;
   bus_plate_number: string;
   bus_type: string;
   body_number: string;
@@ -59,7 +60,7 @@ export class RentalRequestDetailsService {
     const driversArr = Array.isArray(drivers) ? drivers : drivers?.data ?? [];
 
     const busMap = Object.fromEntries(
-      busesArr.map((b: any) => [b.bus_id ?? b.busId, b])
+      busesArr.map((b: any) => [b.id ?? b.bus_id ?? b.busId, b])
     );
 
     const driverMap = Object.fromEntries(
@@ -100,6 +101,7 @@ export class RentalRequestDetailsService {
 
     return {
       assignment_id: assignment?.RentalBusAssignmentID ?? null,
+      bus_id: bus?.id ?? null,
       bus_plate_number:
         bus.plate_number ?? bus.license_plate ?? 'Unknown',
       bus_type: bus.bus_type ?? bus.type ?? 'Unknown',
