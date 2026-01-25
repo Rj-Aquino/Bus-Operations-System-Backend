@@ -40,7 +40,7 @@ export class BusTripsDetailsService {
     return {
       driverMap: Object.fromEntries(driversArr.map((d: any) => [d.employeeNumber ?? d.driver_id, d])),
       conductorMap: Object.fromEntries(conductorsArr.map((c: any) => [c.employeeNumber ?? c.conductor_id, c])),
-      busMap: Object.fromEntries(busesArr.map((b: any) => [b.bus_id ?? b.busId, b])),
+      busMap: Object.fromEntries(busesArr.map((b: any) => [b.id ?? b.bus_id ?? b.busId, b])),
     };
   }
 
@@ -159,6 +159,7 @@ export class BusTripsDetailsService {
           payment_method: trip.Payment_Method ?? null,
           employee_driver: this.formatEmployeeData(driver, 'driver'),
           employee_conductor: this.formatEmployeeData(conductor, 'conductor'),
+          bus_id: bus?.id ?? null,
           bus_plate_number: bus?.plate_number ?? bus?.license_plate ?? null,
           bus_type: bus?.bus_type ?? bus?.type ?? null,
           body_number: bus?.body_number ?? null,
